@@ -8,8 +8,8 @@
 
 import { money } from "@/lib/utils";
 
-export type Range = "1M" | "3M" | "6M" | "1Y";
-export const RANGES = ["1M", "3M", "6M", "1Y"] as const;
+export type Range = "1M" | "3M" | "6M" | "1Y" | "Max";
+export const RANGES = ["1M", "3M", "6M", "1Y", "Max"] as const;
 
 /** Today, as the app sees it. Single source for "now". */
 export const TODAY = new Date("2026-07-23");
@@ -111,12 +111,16 @@ function importedDailyEquity(account: Account): { date: Date; equity: number }[]
 function importedEquitySeries(range: Range, account: Account): EquityPoint[] {
   const daily = importedDailyEquity(account);
   if (!daily.length) return [];
-  const days = { "1M": 30, "3M": 90, "6M": 180, "1Y": 365 }[range];
-  const end = daily[daily.length - 1].date;
-  const cutoff = new Date(end);
-  cutoff.setDate(cutoff.getDate() - days);
-  const windowed = daily.filter((p) => p.date >= cutoff);
-  const pts = windowed.length > 1 ? windowed : daily;
+  // "Max" shows the whole history; other ranges window back from the last trade.
+  let pts = daily;
+  if (range !== "Max") {
+    const days = { "1M": 30, "3M": 90, "6M": 180, "1Y": 365 }[range];
+    const end = daily[daily.length - 1].date;
+    const cutoff = new Date(end);
+    cutoff.setDate(cutoff.getDate() - days);
+    const windowed = daily.filter((p) => p.date >= cutoff);
+    pts = windowed.length > 1 ? windowed : daily;
+  }
   // benchmark mirrors equity and is hidden by the chart (hasBenchmark:false).
   return pts.map((p) => ({
     date: p.date.toISOString().slice(0, 10),
@@ -293,7 +297,8 @@ export type EquityPoint = { date: string; equity: number; benchmark: number };
 
 export function equitySeries(range: Range, account: Account): EquityPoint[] {
   if (account.source === "html") return importedEquitySeries(range, account);
-  const days = { "1M": 30, "3M": 90, "6M": 180, "1Y": 365 }[range];
+  // Demos only hold ~1y of seeded data, so "Max" is the same as 1Y for them.
+  const days = { "1M": 30, "3M": 90, "6M": 180, "1Y": 365, Max: 365 }[range];
   const step = Math.max(1, Math.round(days / 60));
   const rand = seeded(hash(account.id));
   const out: EquityPoint[] = [];
@@ -664,7 +669,11 @@ export type TradeOutcomes = {
  */
 export function tradeOutcomes(account: Account): TradeOutcomes {
   const trades = tradeHistoryFor(account);
-  const band = 500 * (account.equity / 250_000);
+  // Imported accounts classify purely by sign (win/loss), matching how the
+  // broker report counts — a "$500 scaled to equity" band would wrongly bucket
+  // real wins/losses as break-even on a large account. Demos keep the band.
+  const band =
+    account.source === "html" ? 0.005 : 500 * (account.equity / 250_000);
 
   let wins = 0;
   let losses = 0;
@@ -794,7 +803,24 @@ export function returnStatistics(account: Account): Stat[] {
   // all-positive-months account can still dip hard intra-month).
   const maxDDPct =
     account.source === "html" ? importedMaxDrawdown(account) : maxDD * 100;
-  const recovery = maxDDPct < 0 ? netReturn / Math.abs(maxDDPct) : 0;
+
+  // Recovery factor = net profit ÷ max drawdown, in the SAME units. For imports
+  // use real dollars from the equity curve (the report's definition); dividing
+  // return% by drawdown% — different bases — is what gave the absurd ~45.
+  let recovery: number;
+  if (account.source === "html") {
+    const daily = importedDailyEquity(account);
+    let pk = -Infinity;
+    let ddAbs = 0;
+    for (const p of daily) {
+      pk = Math.max(pk, p.equity);
+      ddAbs = Math.max(ddAbs, pk - p.equity);
+    }
+    const netProfit = account.equity - (account.startingBalance ?? 0);
+    recovery = ddAbs > 0 ? netProfit / ddAbs : 0;
+  } else {
+    recovery = maxDDPct < 0 ? netReturn / Math.abs(maxDDPct) : 0;
+  }
 
   // Monthly / yearly performance.
   const posMonths = flatMonths.filter((m) => m.ret > 0).length;

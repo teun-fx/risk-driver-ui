@@ -13,8 +13,10 @@ export function Analytics() {
   const { account } = useAccount();
 
   // The underwater plot follows the equity curve's range so the two read as
-  // one analysis, even with the monthly grid sitting between them.
-  const [range, setRange] = useState<Range>("3M");
+  // one analysis. Imports default to the full history (they span years).
+  const [range, setRange] = useState<Range>(
+    account.source === "html" ? "Max" : "3M",
+  );
 
   return (
     <>

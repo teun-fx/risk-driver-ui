@@ -81,7 +81,9 @@ export function EquityChart({
   /** Lets a parent keep a companion chart (the underwater plot) in sync. */
   onRangeChange?: (r: Range) => void;
 }) {
-  const [range, setRange] = useState<Range>("3M");
+  const imported = account.source === "html";
+  // Imports span years — default to the full history, not a 3-month window.
+  const [range, setRange] = useState<Range>(imported ? "Max" : "3M");
   const data = useMemo(() => equitySeries(range, account), [range, account]);
 
   const changeRange = (r: Range) => {
@@ -94,7 +96,14 @@ export function EquityChart({
 
   const first = data[0]?.equity ?? 0;
   const last = data[data.length - 1]?.equity ?? 0;
-  const change = ((last - first) / first) * 100;
+  // For imports the headline shows TOTAL return since inception (equity vs the
+  // starting balance), independent of the zoom range — the range only shapes
+  // the chart. A demo shows the change over the visible window.
+  const change =
+    imported && account.startingBalance
+      ? ((account.equity - account.startingBalance) / account.startingBalance) *
+        100
+      : ((last - first) / first) * 100;
 
   return (
     // min-w-0 is required: without it the Recharts container refuses to shrink

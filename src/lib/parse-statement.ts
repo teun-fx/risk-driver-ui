@@ -121,6 +121,9 @@ export function parseStatement(html: string): ParseResult {
     const trades: HistTrade[] = [];
     let detectedBalance: number | null = null;
     let id = 0;
+    // FIFO queue of entry ("in") deal times per symbol, to pair with exits and
+    // derive holding duration.
+    const openTimes = new Map<string, number[]>();
 
     for (let i = header.index + 1; i < rows.length; i++) {
       const row = rows[i];
@@ -137,10 +140,23 @@ export function parseStatement(html: string): ParseResult {
         continue;
       }
 
-      // MT5: only closing deals carry realized P&L. MT4: every buy/sell row is
-      // a closed trade.
+      const symbol =
+        cols.symbol >= 0 && row[cols.symbol] ? cleanSymbol(row[cols.symbol]) : "—";
+      const rowTime = cols.time >= 0 ? parseMtDate(row[cols.time] ?? "") : null;
+
+      // MT5: only closing deals carry realized P&L; record entry times to pair.
+      // MT4: every buy/sell row is a complete closed trade.
       if (mt5) {
-        if ((row[cols.direction] ?? "").toLowerCase().trim() !== "out") continue;
+        const dir = (row[cols.direction] ?? "").toLowerCase().trim();
+        if (dir === "in") {
+          if (rowTime) {
+            const q = openTimes.get(symbol) ?? [];
+            q.push(rowTime.getTime());
+            openTimes.set(symbol, q);
+          }
+          continue;
+        }
+        if (dir !== "out") continue;
       } else if (typeCell !== "buy" && typeCell !== "sell") {
         continue;
       }
@@ -155,13 +171,20 @@ export function parseStatement(html: string): ParseResult {
       const pnl = gross + commission + swap;
 
       const date =
-        (cols.time >= 0 ? parseMtDate(row[cols.time] ?? "") : null) ??
+        rowTime ??
         row.map(parseMtDate).filter((d): d is Date => d !== null).pop() ??
         null;
       if (!date) continue;
 
-      const symbol =
-        cols.symbol >= 0 && row[cols.symbol] ? cleanSymbol(row[cols.symbol]) : "—";
+      // Holding time: pair this exit with the oldest open entry for the symbol.
+      let durationHours = 0;
+      if (mt5) {
+        const q = openTimes.get(symbol);
+        if (q && q.length) {
+          const inMs = q.shift() as number;
+          durationHours = Math.round(Math.max(0, (date.getTime() - inMs) / 3_600_000) * 10) / 10;
+        }
+      }
 
       // MT5 "out" deal type is the closing side; the position was the opposite.
       const side: "Long" | "Short" = mt5
@@ -178,7 +201,7 @@ export function parseStatement(html: string): ParseResult {
         pair: symbol,
         side,
         pnl: Math.round(pnl * 100) / 100,
-        durationHours: 0,
+        durationHours,
       });
     }
 
