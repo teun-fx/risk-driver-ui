@@ -29,12 +29,19 @@ export function Dialog({
 }) {
   const panel = useRef<HTMLDivElement>(null);
 
+  // Focus the panel ONLY when it opens. Keeping this out of the effect below
+  // is essential: that effect re-runs whenever `onClose` changes identity
+  // (every parent render, i.e. every keystroke in a form field), and calling
+  // focus() there would steal focus off the input after each character.
+  useEffect(() => {
+    if (open) panel.current?.focus();
+  }, [open]);
+
+  // Escape-to-close and background scroll lock. Safe to re-run on every render.
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     document.addEventListener("keydown", onKey);
-    panel.current?.focus();
-    // Lock background scroll while the modal is up.
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
