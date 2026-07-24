@@ -63,7 +63,17 @@ export function Accounts() {
     if (!file) return;
     setError("");
     setFileName(file.name);
-    setFileText(await file.text());
+    // Decode by BOM — MT5 saves reports as UTF-16, which file.text() (UTF-8)
+    // would turn into garbage, hiding every table from the parser.
+    const buf = await file.arrayBuffer();
+    const b = new Uint8Array(buf);
+    const enc =
+      b[0] === 0xff && b[1] === 0xfe
+        ? "utf-16le"
+        : b[0] === 0xfe && b[1] === 0xff
+          ? "utf-16be"
+          : "utf-8";
+    setFileText(new TextDecoder(enc).decode(buf));
     if (!name) setName(file.name.replace(/\.html?$/i, ""));
   }
 
