@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BarChart3, LayoutGrid, LifeBuoy, Settings, Wallet } from "lucide-react";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
 // Only routes that actually exist. Adding an item here without a matching
@@ -107,10 +108,14 @@ export function Sidebar() {
         ))}
       </div>
 
-      <div className="mt-auto flex flex-col gap-1">
-        {secondary.map((item) => (
-          <NavItem key={item.label} {...item} active={isActive(item.href)} />
-        ))}
+      <div className="mt-auto flex flex-col items-center gap-3">
+        {/* Light/dark switch sits above the utility icons at the rail's foot. */}
+        <ThemeToggle />
+        <div className="flex flex-col gap-1">
+          {secondary.map((item) => (
+            <NavItem key={item.label} {...item} active={isActive(item.href)} />
+          ))}
+        </div>
       </div>
     </nav>
   );

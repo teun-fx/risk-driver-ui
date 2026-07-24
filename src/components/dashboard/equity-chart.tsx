@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Area,
   AreaChart,
@@ -84,6 +84,17 @@ export function EquityChart({
   const imported = account.source === "html";
   // Imports span years — default to the full history, not a 3-month window.
   const [range, setRange] = useState<Range>(imported ? "Max" : "3M");
+
+  // Re-apply the per-account default when the account changes — including the
+  // post-mount switch when the persisted selection loads from localStorage
+  // (the provider hydrates it in an effect, after this first render).
+  useEffect(() => {
+    const def: Range = account.source === "html" ? "Max" : "3M";
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset on account switch
+    setRange(def);
+    onRangeChange?.(def);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- onRangeChange identity changes every parent render
+  }, [account.id, account.source]);
   const data = useMemo(() => equitySeries(range, account), [range, account]);
 
   const changeRange = (r: Range) => {

@@ -95,6 +95,70 @@
 }
 
 /* ============================================================
+   LIGHT THEME — colour overrides only.
+
+   Toggled by adding the `light` class to <html> (see ThemeToggle in the
+   sidebar). Every token the app uses is re-pointed here, so components,
+   typography, spacing and logic are untouched — only surfaces and colours
+   change. NOT an automatic flip of the dark values: each step was chosen
+   for a light ground, and the chart ramp + P&L pair were re-validated with
+   the dataviz palette validator against surface #f7f8f9 (all checks pass;
+   green/red CVD closeness is inherent and mitigated by sign/arrow cues,
+   same as dark).
+   ============================================================ */
+html.light {
+  color-scheme: light;
+
+  /* Surfaces: airy blue-grey ground, white cards — reference-board style. */
+  --color-base: #eef1f4;
+  --color-surface: #ffffff;
+  --color-raised: #f3f5f7;
+  --color-overlay: #ffffff;
+
+  /* Hairlines darker than surfaces (inverse of dark mode). */
+  --color-line: #e3e7ec;
+  --color-line-strong: #cdd4db;
+
+  /* Ink flips to slate on white. */
+  --color-ink: #1c2429;
+  --color-ink-secondary: #566470;
+  --color-ink-muted: #8494a0;
+
+  /* Accent: same teal identity, deepened for white ground. */
+  --color-accent: #0e8a74;
+  --color-accent-hover: #0b7361;
+  --color-accent-press: #095e50;
+  --color-accent-soft: #d9f0ea;
+  --color-on-accent: #ffffff;
+
+  /* Semantic P&L — validated on #f7f8f9. */
+  --color-profit: #16a34a;
+  --color-profit-soft: #e3f5e9;
+  --color-profit-glow: #22c55e;
+  --color-loss: #dc2626;
+  --color-loss-soft: #fbe7e7;
+  --color-loss-glow: #ef4444;
+  --color-warn: #b45309;
+  --color-warn-soft: #f7ecd9;
+
+  /* Chart ramp — validated on #f7f8f9 (chroma, CVD, contrast all pass). */
+  --color-chart-1: #0e8a74;
+  --color-chart-2: #5257c4;
+  --color-chart-3: #96621a;
+  --color-chart-4: #a34a82;
+  --color-chart-grid: #e8ebee;
+
+  /* Floating layers need a softer shadow on light. */
+  --shadow-pop: 0 12px 32px -8px rgb(15 23 32 / 0.18);
+}
+
+/* Light-mode scrollbars follow the flipped surfaces. */
+html.light ::-webkit-scrollbar-thumb {
+  background: var(--color-line-strong);
+  border-color: var(--color-base);
+}
+
+/* ============================================================
    MOTION — bars and blocks arrive rather than appearing.
 
    Only `transform` and `opacity` are animated; animating width would
