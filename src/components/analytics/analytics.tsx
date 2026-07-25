@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeftRight, LayoutGrid, ShieldAlert } from "lucide-react";
+import { ArrowLeftRight, LayoutGrid, ShieldAlert, Shuffle } from "lucide-react";
 import { EquityChart } from "@/components/dashboard/equity-chart";
 import { MonthlyReturns } from "@/components/dashboard/monthly-returns";
 import { TradeOutcomes } from "@/components/analytics/trade-outcomes";
 import { ReturnStatistics } from "@/components/analytics/return-statistics";
 import { RiskTab } from "@/components/analytics/risk-tab";
+import { MonteCarloTab } from "@/components/analytics/monte-carlo";
 import { TradesTab } from "@/components/analytics/trades-tab";
 import { useAccount } from "@/components/account-context";
 import { cn } from "@/lib/utils";
@@ -14,6 +15,7 @@ import { cn } from "@/lib/utils";
 const TABS = [
   { id: "overview", label: "Overview", icon: LayoutGrid },
   { id: "risk", label: "Risk stats", icon: ShieldAlert },
+  { id: "montecarlo", label: "Monte Carlo", icon: Shuffle },
   { id: "trades", label: "Trades", icon: ArrowLeftRight },
 ] as const;
 
@@ -89,6 +91,8 @@ export function Analytics() {
       )}
 
       {tab === "risk" && <RiskTab account={account} />}
+
+      {tab === "montecarlo" && <MonteCarloTab account={account} />}
 
       {tab === "trades" && <TradesTab account={account} />}
     </>
