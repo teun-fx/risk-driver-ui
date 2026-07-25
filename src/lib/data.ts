@@ -1086,27 +1086,35 @@ export function returnStatistics(account: Account): Stat[] {
 
 /* ---- Performance by weekday / month / year ---- */
 
-export type Breakdown = { label: string; pnl: number; trades: number };
+export type Breakdown = {
+  label: string;
+  pnl: number;
+  trades: number;
+  /** Winning trades in the bucket (pnl > 0), for hover stats. */
+  wins: number;
+};
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri"];
 
 export function byWeekday(account: Account): Breakdown[] {
-  const acc = WEEKDAYS.map((label) => ({ label, pnl: 0, trades: 0 }));
+  const acc = WEEKDAYS.map((label) => ({ label, pnl: 0, trades: 0, wins: 0 }));
   for (const t of tradeHistoryFor(account)) {
     const i = t.date.getDay() - 1; // Mon = 0
     if (i < 0 || i > 4) continue;
     acc[i].pnl += t.pnl;
     acc[i].trades++;
+    if (t.pnl > 0) acc[i].wins++;
   }
   return acc;
 }
 
 export function byMonth(account: Account): Breakdown[] {
-  const acc = MONTHS.map((label) => ({ label, pnl: 0, trades: 0 }));
+  const acc = MONTHS.map((label) => ({ label, pnl: 0, trades: 0, wins: 0 }));
   for (const t of tradeHistoryFor(account)) {
     const i = t.date.getMonth();
     acc[i].pnl += t.pnl;
     acc[i].trades++;
+    if (t.pnl > 0) acc[i].wins++;
   }
   return acc;
 }
@@ -1115,10 +1123,11 @@ export function byYear(account: Account): Breakdown[] {
   const map = new Map<number, Breakdown>();
   for (const t of tradeHistoryFor(account)) {
     const y = t.date.getFullYear();
-    if (!map.has(y)) map.set(y, { label: String(y), pnl: 0, trades: 0 });
+    if (!map.has(y)) map.set(y, { label: String(y), pnl: 0, trades: 0, wins: 0 });
     const b = map.get(y)!;
     b.pnl += t.pnl;
     b.trades++;
+    if (t.pnl > 0) b.wins++;
   }
   return [...map.values()].sort((a, b) => a.label.localeCompare(b.label));
 }
