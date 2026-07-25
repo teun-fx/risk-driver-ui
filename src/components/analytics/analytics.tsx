@@ -6,6 +6,7 @@ import { EquityChart } from "@/components/dashboard/equity-chart";
 import { MonthlyReturns } from "@/components/dashboard/monthly-returns";
 import { TradeOutcomes } from "@/components/analytics/trade-outcomes";
 import { ReturnStatistics } from "@/components/analytics/return-statistics";
+import { PerfBreakdown } from "@/components/analytics/perf-breakdown";
 import { RiskTab } from "@/components/analytics/risk-tab";
 import { MonteCarloTab } from "@/components/analytics/monte-carlo";
 import { TradesTab } from "@/components/analytics/trades-tab";
@@ -76,6 +77,10 @@ export function Analytics() {
 
           <section aria-label="Monthly returns">
             <MonthlyReturns account={account} />
+          </section>
+
+          <section aria-label="Performance by period">
+            <PerfBreakdown account={account} />
           </section>
 
           <section
