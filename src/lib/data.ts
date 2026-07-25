@@ -749,6 +749,175 @@ export type Stat = {
  * history and monthly-returns series the rest of analytics uses, so nothing
  * here can contradict the donut or the curves above it.
  */
+/* ---- Risk analytics: drawdown episodes, ratios, volatility ---- */
+
+/**
+ * One daily equity series for ANY account — real balances for imports,
+ * the seeded full-history curve for demos. Every risk metric below derives
+ * from this single source, so an uploaded statement is automatically
+ * consistent across the whole Risk tab.
+ */
+export function dailyEquityFor(account: Account): { date: Date; equity: number }[] {
+  if (account.source === "html") return importedDailyEquity(account);
+  return equitySeries("Max", account).map((p) => ({
+    date: new Date(p.date),
+    equity: p.equity,
+  }));
+}
+
+export type DrawdownEpisode = {
+  /** First day equity dropped below the prior peak. */
+  start: Date;
+  /** Deepest day of the episode. */
+  trough: Date;
+  /** Day a new high was made — null while still underwater. */
+  recovered: Date | null;
+  /** Max depth, negative percent. */
+  depthPct: number;
+  /** Max depth in currency. */
+  depthAbs: number;
+  /** Calendar days from start until recovery (or until the last data point). */
+  days: number;
+};
+
+/** Peak-to-recovery drawdown episodes, deepest first. */
+export function drawdownEpisodes(account: Account): DrawdownEpisode[] {
+  const daily = dailyEquityFor(account);
+  if (daily.length < 2) return [];
+
+  const episodes: DrawdownEpisode[] = [];
+  let peak = daily[0].equity;
+  let cur: DrawdownEpisode | null = null;
+  const lastDate = daily[daily.length - 1].date;
+
+  for (const p of daily) {
+    if (p.equity >= peak) {
+      if (cur) {
+        cur.recovered = p.date;
+        cur.days = Math.round((p.date.getTime() - cur.start.getTime()) / 86_400_000);
+        episodes.push(cur);
+        cur = null;
+      }
+      peak = p.equity;
+      continue;
+    }
+    const depthPct = ((p.equity - peak) / peak) * 100;
+    const depthAbs = peak - p.equity;
+    if (!cur) {
+      cur = { start: p.date, trough: p.date, recovered: null, depthPct, depthAbs, days: 0 };
+    }
+    if (depthPct < cur.depthPct) {
+      cur.depthPct = depthPct;
+      cur.depthAbs = depthAbs;
+      cur.trough = p.date;
+    }
+  }
+  if (cur) {
+    // Still underwater at the end of the data.
+    cur.days = Math.round((lastDate.getTime() - cur.start.getTime()) / 86_400_000);
+    episodes.push(cur);
+  }
+  return episodes.sort((a, b) => a.depthPct - b.depthPct);
+}
+
+export type RiskAnalytics = {
+  maxDrawdownAbs: number;
+  maxDrawdownPct: number;
+  /** Mean max-depth across all drawdown episodes. */
+  avgDrawdownPct: number;
+  /** Mean episode length in days. */
+  avgDrawdownDays: number;
+  sortino: number;
+  calmar: number;
+  /** Annualised return over the whole series, percent. */
+  cagrPct: number;
+};
+
+export function riskAnalytics(account: Account): RiskAnalytics {
+  const daily = dailyEquityFor(account);
+  const episodes = drawdownEpisodes(account);
+
+  const rets: number[] = [];
+  for (let i = 1; i < daily.length; i++) {
+    const prev = daily[i - 1].equity;
+    if (prev) rets.push((daily[i].equity - prev) / prev);
+  }
+
+  const mean = rets.reduce((a, r) => a + r, 0) / (rets.length || 1);
+  // Downside deviation: only negative days penalise (Sortino's denominator).
+  const downside = Math.sqrt(
+    rets.reduce((a, r) => a + Math.min(0, r) ** 2, 0) / (rets.length || 1),
+  );
+  const sortino = downside > 0 ? (mean / downside) * Math.sqrt(252) : 0;
+
+  const start = daily[0]?.equity ?? 0;
+  const end = daily[daily.length - 1]?.equity ?? 0;
+  const totalDays = daily.length > 1
+    ? (daily[daily.length - 1].date.getTime() - daily[0].date.getTime()) / 86_400_000
+    : 1;
+  const cagrPct =
+    start > 0 && totalDays > 0
+      ? ((end / start) ** (365 / totalDays) - 1) * 100
+      : 0;
+
+  const maxDrawdownPct = episodes.length ? episodes[0].depthPct : 0;
+  const maxDrawdownAbs = episodes.length
+    ? Math.max(...episodes.map((e) => e.depthAbs))
+    : 0;
+  const calmar = maxDrawdownPct < 0 ? cagrPct / Math.abs(maxDrawdownPct) : 0;
+
+  return {
+    maxDrawdownAbs,
+    maxDrawdownPct,
+    avgDrawdownPct:
+      episodes.reduce((a, e) => a + e.depthPct, 0) / (episodes.length || 1),
+    avgDrawdownDays:
+      episodes.reduce((a, e) => a + e.days, 0) / (episodes.length || 1),
+    sortino,
+    calmar,
+    cagrPct,
+  };
+}
+
+/** Cumulative return %, plus the worst episodes for band-shading the chart. */
+export function returnComparison(account: Account) {
+  const daily = dailyEquityFor(account);
+  const start = daily[0]?.equity ?? 1;
+  const points = daily.map((p) => ({
+    date: p.date.toISOString().slice(0, 10),
+    ret: ((p.equity - start) / start) * 100,
+  }));
+  const lastDate = daily[daily.length - 1]?.date;
+  const bands = drawdownEpisodes(account)
+    .slice(0, 5)
+    .map((e) => ({
+      from: e.start.toISOString().slice(0, 10),
+      to: (e.recovered ?? lastDate).toISOString().slice(0, 10),
+    }));
+  return { points, bands };
+}
+
+/** Rolling 30-day volatility, annualised, in percent. */
+export function rollingVolatility(account: Account, window = 30) {
+  const daily = dailyEquityFor(account);
+  const rets: { date: Date; r: number }[] = [];
+  for (let i = 1; i < daily.length; i++) {
+    const prev = daily[i - 1].equity;
+    if (prev) rets.push({ date: daily[i].date, r: (daily[i].equity - prev) / prev });
+  }
+  const out: { date: string; vol: number }[] = [];
+  for (let i = window; i < rets.length; i++) {
+    const slice = rets.slice(i - window, i);
+    const m = slice.reduce((a, x) => a + x.r, 0) / window;
+    const sd = Math.sqrt(slice.reduce((a, x) => a + (x.r - m) ** 2, 0) / window);
+    out.push({
+      date: rets[i].date.toISOString().slice(0, 10),
+      vol: Math.round(sd * Math.sqrt(252) * 100 * 100) / 100,
+    });
+  }
+  return out;
+}
+
 export function returnStatistics(account: Account): Stat[] {
   const trades = tradeHistoryFor(account);
   const o = tradeOutcomes(account);
