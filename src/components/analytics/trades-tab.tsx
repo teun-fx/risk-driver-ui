@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TD, TH, THead, TR } from "@/components/ui/table";
@@ -65,10 +65,11 @@ function Key({ tone, label }: { tone: "profit" | "loss"; label: string }) {
 }
 
 /**
- * The full ledger, with the win/loss sequence strip folded in above it —
- * the strip is the same trades the table lists, so they share one card.
- * Every recent trade is one block, in order; clustering is the point:
- * losses bunching together is what tilt and regime change look like.
+ * The full ledger. The win/loss sequence lives in the table itself: each row
+ * carries a vertical bar in the trailing column, green or red by sign and
+ * scaled by size of the move, so clustering — losses bunching together, which
+ * is what tilt and regime change look like — reads straight down the column.
+ * Hovering a row crossfades its bar to full strength and drops the rest back.
  */
 function ClosedTradesTable({ account }: { account: Account }) {
   const trades = useMemo(
@@ -79,8 +80,10 @@ function ClosedTradesTable({ account }: { account: Account }) {
     [account],
   );
   const seq = useMemo(() => winLossSequence(account), [account]);
+  const [hover, setHover] = useState<number | null>(null);
   const shown = trades.slice(0, SHOWN);
   const net = trades.reduce((a, t) => a + t.pnl, 0);
+  const maxAbs = Math.max(...shown.map((t) => Math.abs(t.pnl)), 1);
 
   return (
     <Card className="min-w-0 overflow-hidden">
@@ -107,45 +110,23 @@ function ClosedTradesTable({ account }: { account: Account }) {
         </div>
       </CardHeader>
 
-      {/* Win/loss sequence — flat monthly-returns inks, oldest to newest. */}
-      <div className="border-b border-line px-5 py-4">
-        <div
-          className="flex flex-wrap content-start gap-[3px]"
-          role="img"
-          aria-label={`Sequence of ${seq.total} trades, ${seq.wins} wins`}
-        >
-          {seq.results.map((win, i) => (
-            <span
-              key={i}
-              title={`Trade ${i + 1}: ${win ? "win" : "loss"}`}
-              className="block-pop h-6 w-2 rounded-xs transition-transform duration-150 ease-out hover:scale-y-125"
-              style={{
-                animationDelay: `${Math.min(i * 9, 900)}ms`,
-                background: `var(--color-${win ? "profit" : "loss"})`,
-                opacity: 0.85,
-              }}
-            />
-          ))}
-        </div>
-
-        <div className="mt-3 flex items-center gap-4">
-          <Key tone="profit" label="Win" />
-          <Key tone="loss" label="Loss" />
-          <span className="text-label text-ink-muted">
-            Oldest on the left, most recent on the right
+      <div className="flex items-center gap-4 border-b border-line px-5 py-3">
+        <Key tone="profit" label="Win" />
+        <Key tone="loss" label="Loss" />
+        <span className="text-label text-ink-muted">
+          Bar length scales with size of the move
+        </span>
+        {trades.length > SHOWN && (
+          <span className="ml-auto text-label text-ink-muted">
+            Showing latest {SHOWN}
           </span>
-          {trades.length > SHOWN && (
-            <span className="ml-auto text-label text-ink-muted">
-              Table shows latest {SHOWN}
-            </span>
-          )}
-        </div>
+        )}
       </div>
 
       <Table>
         <caption className="sr-only">
-          Closed trades with date, instrument, side, holding time and realized
-          profit or loss
+          Closed trades with date, instrument, side, holding time, realized
+          profit or loss, and a win/loss bar scaled to the size of the move
         </caption>
         <THead>
           <tr>
@@ -154,13 +135,16 @@ function ClosedTradesTable({ account }: { account: Account }) {
             <TH>Side</TH>
             <TH numeric>Held</TH>
             <TH numeric>P&amp;L</TH>
+            <TH className="w-10 text-center">Seq</TH>
           </tr>
         </THead>
-        <tbody>
+        <tbody onMouseLeave={() => setHover(null)}>
           {shown.map((t) => {
             const win = t.pnl >= 0;
+            const h = Math.max(20, (Math.abs(t.pnl) / maxAbs) * 100);
+            const dimmed = hover !== null && hover !== t.id;
             return (
-              <TR key={t.id}>
+              <TR key={t.id} onMouseEnter={() => setHover(t.id)}>
                 <TD className="text-ink">{fullDate(t.date)}</TD>
                 <TD>
                   <span className="font-medium tnum text-ink">{t.pair}</span>
@@ -179,6 +163,25 @@ function ClosedTradesTable({ account }: { account: Account }) {
                     )}
                   >
                     {money(t.pnl, { signed: true })}
+                  </span>
+                </TD>
+
+                {/* Sequence bar — vertical, flat monthly-returns ink. */}
+                <TD className="px-2">
+                  <span
+                    className="flex h-6 items-center justify-center"
+                    title={`${win ? "Win" : "Loss"} · ${money(t.pnl, { signed: true })}`}
+                  >
+                    <span
+                      className={cn(
+                        "block w-2 rounded-xs transition-opacity duration-150 ease-out",
+                        win ? "bg-profit" : "bg-loss",
+                      )}
+                      style={{
+                        height: `${h}%`,
+                        opacity: dimmed ? 0.25 : hover === t.id ? 1 : 0.85,
+                      }}
+                    />
                   </span>
                 </TD>
               </TR>
