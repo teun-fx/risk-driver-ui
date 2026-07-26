@@ -79,18 +79,18 @@ export function Analytics() {
             <MonthlyReturns account={account} />
           </section>
 
-          <section aria-label="Performance by period">
-            <PerfBreakdown account={account} />
-          </section>
-
           <section
-            aria-label="Outcomes and statistics"
-            className="grid grid-cols-1 gap-5 xl:grid-cols-3"
+            aria-label="Performance and outcomes"
+            className="grid grid-cols-1 items-stretch gap-5 xl:grid-cols-3"
           >
             <div className="min-w-0 xl:col-span-2">
-              <ReturnStatistics account={account} />
+              <PerfBreakdown account={account} />
             </div>
             <TradeOutcomes account={account} />
+          </section>
+
+          <section aria-label="Return statistics">
+            <ReturnStatistics account={account} />
           </section>
         </>
       )}

@@ -67,7 +67,7 @@ export function PerfBreakdown({ account }: { account: Account }) {
   );
 
   return (
-    <Card className="min-w-0">
+    <Card className="flex h-full min-w-0 flex-col">
       <CardHeader className="items-center">
         <div>
           <CardTitle>Performance</CardTitle>
@@ -83,7 +83,7 @@ export function PerfBreakdown({ account }: { account: Account }) {
         />
       </CardHeader>
 
-      <CardContent className="pt-0">
+      <CardContent className="flex flex-1 flex-col pt-0">
         <div className="flex flex-wrap items-center gap-2.5">
           <span
             className={cn("text-title tnum", up ? "text-ink" : "text-loss")}
@@ -106,7 +106,7 @@ export function PerfBreakdown({ account }: { account: Account }) {
         </div>
 
         {/* Cells cross over on view change — quick fade, no re-entrance drama. */}
-        <div key={view} className="fade-rise mt-3 flex flex-wrap gap-y-1">
+        <div key={view} className="fade-rise my-auto flex flex-wrap gap-y-2 py-3">
           {rows.map((d) => {
             const pct = (d.pnl / data.base) * 100;
             const pos = d.pnl >= 0;
@@ -133,7 +133,7 @@ export function PerfBreakdown({ account }: { account: Account }) {
                 {/* Magnitude — the risk-budget pill stack, vertical. */}
                 <VerticalSegmentMeter
                   value={width}
-                  segments={5}
+                  segments={7}
                   tone={pos ? "profit" : "loss"}
                   label={`${LONG_LABEL[d.label] ?? d.label} magnitude`}
                 />
