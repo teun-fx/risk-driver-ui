@@ -194,8 +194,10 @@ function VolatilityChart({ account }: { account: Account }) {
   const at = hoverAt ?? data[data.length - 1];
   const vols = data.map((d) => d.vol);
   const avg = vols.reduce((a, v) => a + v, 0) / (vols.length || 1);
-  const hi = Math.max(...vols, 0);
-  const lo = Math.min(...vols, 0);
+  // No 0 seed here: the series is strictly positive, so seeding Math.min with
+  // 0 would report a "lowest" the account never had.
+  const hi = vols.length ? Math.max(...vols) : 0;
+  const lo = vols.length ? Math.min(...vols) : 0;
 
   return (
     <Card className="flex min-w-0 flex-col">
