@@ -206,6 +206,22 @@ html.light ::-webkit-scrollbar-thumb {
   animation: pop-in 260ms cubic-bezier(0.34, 1.32, 0.64, 1) both;
 }
 
+/* Panel content crossing over after a view switch — quick, subtle, ease-out. */
+@keyframes fade-rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@utility fade-rise {
+  animation: fade-rise 150ms ease-out both;
+}
+
 /* ---- Type scale. Tight tracking at large sizes — the Mercury tell. ---- */
 @utility text-display {
   font-size: 30px;
