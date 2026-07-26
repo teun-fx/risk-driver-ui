@@ -86,7 +86,7 @@ export function PerfBreakdown({ account }: { account: Account }) {
         {/* Headline + delta chip, reference-style. */}
         <div className="flex flex-wrap items-center gap-3">
           <span
-            className={cn("text-display tnum", up ? "text-ink" : "text-loss")}
+            className={cn("text-metric tnum", up ? "text-ink" : "text-loss")}
           >
             {money(Math.round(totalPnl), { signed: true })}
           </span>
@@ -106,7 +106,7 @@ export function PerfBreakdown({ account }: { account: Account }) {
         </div>
 
         {/* Bars. Height carries magnitude; colour carries sign. */}
-        <div className="mt-5 flex items-end gap-2 sm:gap-3">
+        <div className="mt-3 flex items-end gap-2 sm:gap-3">
           {rows.map((d, i) => {
             const isActive = i === active;
             const pos = d.pnl >= 0;
@@ -127,7 +127,7 @@ export function PerfBreakdown({ account }: { account: Account }) {
                 {/* Value label — only on the highlighted bar. */}
                 <span
                   className={cn(
-                    "block h-5 text-center text-[11.5px] tnum font-medium transition-opacity duration-150 ease-out",
+                    "block h-4 text-center text-[11.5px] tnum font-medium transition-opacity duration-150 ease-out",
                     isActive ? "opacity-100" : "opacity-0",
                     pos ? "text-ink" : "text-loss",
                   )}
@@ -136,7 +136,7 @@ export function PerfBreakdown({ account }: { account: Account }) {
                   {kfmt(d.pnl)}
                 </span>
 
-                <span className="flex h-[120px] items-end">
+                <span className="flex h-[72px] items-end">
                   <span
                     className={cn(
                       "mx-auto block w-full max-w-14 rounded-md transition-[opacity,transform] duration-200 ease-out",
@@ -152,7 +152,7 @@ export function PerfBreakdown({ account }: { account: Account }) {
 
                 <span
                   className={cn(
-                    "mt-2 block text-center text-[11px] transition-colors duration-150 ease-out",
+                    "mt-1.5 block text-center text-[11px] transition-colors duration-150 ease-out",
                     isActive ? "text-ink" : "text-ink-muted",
                   )}
                   aria-hidden

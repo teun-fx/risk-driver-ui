@@ -82,6 +82,10 @@ function findHeader(rows: Row[], from: number) {
           symbol: lower.findIndex((c) => c === "symbol" || c === "item"),
           time: lower.findIndex((c) => c === "time" || c === "close time"),
           balance: lower.indexOf("balance"),
+          // Position size: MT5 Deals call it "Volume", MT4 statements "Size".
+          volume: lower.findIndex(
+            (c) => c === "volume" || c === "size" || c === "lots",
+          ),
         },
       };
     }
@@ -195,6 +199,13 @@ export function parseStatement(html: string): ParseResult {
           ? "Long"
           : "Short";
 
+      // Position size — "1.93" or MT4's "1.93 / 1.93" partial-close form.
+      let lots: number | undefined;
+      if (cols.volume >= 0 && row[cols.volume]) {
+        const v = parseMoney(row[cols.volume].split("/")[0]);
+        if (v != null && v > 0) lots = v;
+      }
+
       trades.push({
         id: id++,
         date,
@@ -202,6 +213,9 @@ export function parseStatement(html: string): ParseResult {
         side,
         pnl: Math.round(pnl * 100) / 100,
         durationHours,
+        lots,
+        commission: Math.round(commission * 100) / 100,
+        swap: Math.round(swap * 100) / 100,
       });
     }
 
@@ -249,5 +263,6 @@ export function accountFromParse(
     startingBalance,
     riskPerTrade: opts.riskPerTrade,
     hasBenchmark: false,
+    updatedAt: new Date().toISOString(),
   };
 }

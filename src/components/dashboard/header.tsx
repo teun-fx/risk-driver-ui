@@ -27,10 +27,10 @@ export function Header({
   onAccountChange: (a: Account) => void;
 }) {
   const pathname = usePathname();
-  const { title, subtitle } = TITLES[pathname] ?? {
-    title: "Risk Driver",
-    subtitle: "Thursday, 23 July",
-  };
+  const { title, subtitle } = TITLES[pathname] ??
+    (pathname.startsWith("/accounts/")
+      ? { title: "Account analytics", subtitle: "One account, fully broken down" }
+      : { title: "Risk Driver", subtitle: "Thursday, 23 July" });
 
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-base/85 backdrop-blur-sm">

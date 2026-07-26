@@ -30,6 +30,8 @@ type Ctx = {
   account: Account;
   setAccount: (a: Account) => void;
   addAccount: (a: Account) => void;
+  /** Replace an imported account in place (edit / re-uploaded statement). */
+  updateAccount: (a: Account) => void;
   removeAccount: (id: string) => void;
 };
 
@@ -89,6 +91,14 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
     select(a.id);
   };
 
+  const updateAccount = (a: Account) => {
+    setImported((prev) => {
+      const next = prev.map((x) => (x.id === a.id ? a : x));
+      persist(next);
+      return next;
+    });
+  };
+
   const removeAccount = (id: string) => {
     setImported((prev) => {
       const next = prev.filter((x) => x.id !== id);
@@ -106,6 +116,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
         account,
         setAccount: (a) => select(a.id),
         addAccount,
+        updateAccount,
         removeAccount,
       }}
     >

@@ -53,6 +53,10 @@ export type Account = {
   riskPerTrade?: number;
   /** Imported accounts have no benchmark index in their statement. */
   hasBenchmark?: boolean;
+  /** User-set label like "Prop · Evaluation" — not derivable from a statement. */
+  accountType?: string;
+  /** ISO timestamp of the last import/edit, for the overview's Last updated. */
+  updatedAt?: string;
 };
 
 /** The two demo accounts kept alongside imported ones (widest date range). */
@@ -493,13 +497,22 @@ export function tradesFor(account: Account): Trade[] {
 
 export type HistTrade = {
   id: number;
+  /** Close time of the position. */
   date: Date;
   /** Symbol — a fixed Pair for demo data, any broker symbol when imported. */
   pair: string;
   side: "Long" | "Short";
+  /** Net realized P&L (gross + commission + swap). */
   pnl: number;
   /** How long the position was held, in hours. */
   durationHours: number;
+  /** Position size in lots — present only on statements parsed since the
+      parser upgrade; older stored accounts show "—" until re-uploaded. */
+  lots?: number;
+  /** Commission for the trade, negative. Optional for the same reason. */
+  commission?: number;
+  /** Swap/rollover for the trade. Optional for the same reason. */
+  swap?: number;
 };
 
 /**
