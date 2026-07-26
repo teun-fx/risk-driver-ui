@@ -7,11 +7,16 @@ import {
   CartesianGrid,
   ReferenceLine,
   ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  CROSSHAIR,
+  ChartReadout,
+  Read,
+  usePlotHover,
+} from "@/components/ui/chart-readout";
 import { underwaterSeries, type Account, type Range } from "@/lib/data";
 
 function shortDate(iso: string) {
@@ -19,25 +24,6 @@ function shortDate(iso: string) {
     month: "short",
     day: "numeric",
   });
-}
-
-type TipProps = {
-  active?: boolean;
-  payload?: Array<{ value: number }>;
-  label?: string;
-};
-
-function Tip({ active, payload, label }: TipProps) {
-  if (!active || !payload?.length) return null;
-  const v = payload[0].value;
-  return (
-    <div className="rounded-md border border-line bg-overlay px-3 py-2.5 shadow-pop">
-      <p className="text-label text-ink-muted">{label && shortDate(label)}</p>
-      <p className="mt-1 text-label tnum font-medium text-ink">
-        {v === 0 ? "At peak" : `−${Math.abs(v).toFixed(2)}% below peak`}
-      </p>
-    </div>
-  );
 }
 
 /**
@@ -57,6 +43,17 @@ export function UnderwaterPlot({
   const data = useMemo(() => underwaterSeries(range, account), [range, account]);
   const trough = Math.min(...data.map((d) => d.drawdown));
   const atPeak = data.filter((d) => d.drawdown > -0.01).length;
+  const { index, handlers } = usePlotHover({
+    count: data.length,
+    padLeft: 8 + 44,
+    padRight: 16,
+  });
+
+  // Readout follows the pointer; with nothing hovered it reports the last point.
+  const hoverAt = index === null ? null : data[index];
+  const at = hoverAt ?? data[data.length - 1];
+  const dd = at?.drawdown ?? 0;
+  const troughIdx = data.findIndex((d) => d.drawdown === trough);
 
   return (
     <Card className="flex min-w-0 flex-col">
@@ -80,7 +77,11 @@ export function UnderwaterPlot({
         </div>
       </CardHeader>
 
-      <div className="w-full min-w-0 px-1 pb-3" style={{ height }}>
+      <div
+        className="w-full min-w-0 cursor-crosshair px-1 pb-3"
+        style={{ height }}
+        {...handlers}
+      >
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data} margin={{ top: 4, right: 16, bottom: 0, left: 8 }}>
             <defs>
@@ -116,10 +117,8 @@ export function UnderwaterPlot({
               tick={{ fill: "var(--color-ink-muted)", fontSize: 11 }}
               domain={[() => trough * 1.15, 0]}
             />
-            <Tooltip
-              content={<Tip />}
-              cursor={{ stroke: "var(--color-line-strong)", strokeWidth: 1 }}
-            />
+            {/* Crosshair — the figures live in the readout row below. */}
+            {hoverAt && <ReferenceLine x={hoverAt.date} {...CROSSHAIR} />}
             {/* The zero line is the peak — the reference everything hangs from. */}
             <ReferenceLine y={0} stroke="var(--color-line-strong)" strokeWidth={1} />
 
@@ -140,6 +139,29 @@ export function UnderwaterPlot({
             />
           </AreaChart>
         </ResponsiveContainer>
+      </div>
+
+      <div className="px-5 pb-4">
+        <ChartReadout>
+          <Read label={at ? shortDate(at.date) : "—"} value="" plain />
+          <Read
+            label="Below peak"
+            value={dd === 0 ? "At peak" : `−${Math.abs(dd).toFixed(2)}%`}
+            colorVar="--color-loss"
+          />
+          <Read
+            label="Deepest"
+            value={`−${Math.abs(trough).toFixed(2)}%`}
+            colorVar="--color-loss"
+          />
+          <Read
+            label="Deepest on"
+            value={troughIdx >= 0 ? shortDate(data[troughIdx].date) : "—"}
+            plain
+          />
+          <Read label="Days at peak" value={`${atPeak}`} plain />
+          <Read label="Observations" value={`${data.length}`} plain />
+        </ChartReadout>
       </div>
     </Card>
   );

@@ -5,6 +5,7 @@ import { RefreshCw } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, SegmentedControl } from "@/components/ui/input";
+import { ChartReadout, Read } from "@/components/ui/chart-readout";
 import {
   MODEL_BLURBS,
   MODEL_LABELS,
@@ -387,7 +388,7 @@ function CloudChart({
         <canvas ref={fxRef} className="absolute inset-0" />
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 border-t border-line px-1 pt-3 sm:grid-cols-3 lg:grid-cols-6">
+      <ChartReadout>
         <Read label={`Trade ${h.toLocaleString("en-US")}`} value="" plain />
         <Read label="Median" value={fmt(median)} colorVar="--color-chart-2" />
         <Read label="Average" value={fmt(result.avgPath[h])} colorVar="--color-accent" />
@@ -398,40 +399,8 @@ function CloudChart({
           value={`−${(result.ddBand[col] * 100).toFixed(1)}%`}
           colorVar="--color-loss"
         />
-      </div>
+      </ChartReadout>
     </div>
-  );
-}
-
-function Read({
-  label,
-  value,
-  colorVar,
-  plain,
-}: {
-  label: string;
-  value: string;
-  colorVar?: string;
-  plain?: boolean;
-}) {
-  return (
-    <span className="min-w-0">
-      <span className="flex items-center gap-1.5">
-        {!plain && colorVar && (
-          <span
-            className="h-0.5 w-3 shrink-0 rounded-full"
-            style={{ background: `var(${colorVar})` }}
-            aria-hidden
-          />
-        )}
-        <span className="truncate text-[11px] text-ink-muted">{label}</span>
-      </span>
-      {value && (
-        <span className="mt-0.5 block text-label tnum font-medium text-ink">
-          {value}
-        </span>
-      )}
-    </span>
   );
 }
 
