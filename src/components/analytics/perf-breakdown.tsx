@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { VerticalSegmentMeter } from "@/components/ui/progress";
 import {
   byMonth,
   byWeekday,
@@ -223,16 +224,12 @@ function PanelCells({
               {Math.abs(pct).toFixed(1)}%
             </span>
 
-            {/* Magnitude bar — the factsheet strip, flat ink at 85%. */}
-            <span className="h-[3px] w-full max-w-10 overflow-hidden rounded-full bg-raised">
-              <span
-                className={cn(
-                  "block h-full rounded-full",
-                  pos ? "bg-profit" : "bg-loss",
-                )}
-                style={{ width: `${width}%`, opacity: 0.85 }}
-              />
-            </span>
+            {/* Magnitude — the risk-budget pill stack, vertical, filled by size of move. */}
+            <VerticalSegmentMeter
+              value={width}
+              tone={pos ? "profit" : "loss"}
+              label={`${LONG_LABEL[d.label] ?? d.label} magnitude`}
+            />
 
             <span className="text-[11px] tnum text-ink-secondary">
               {rate}% win

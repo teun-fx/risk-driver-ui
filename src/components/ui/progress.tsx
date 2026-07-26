@@ -39,6 +39,42 @@ export function Progress({
   );
 }
 
+/** Vertical segment stack — the risk-budget pills stood on end. Fills bottom-up. */
+export function VerticalSegmentMeter({
+  value,
+  segments = 7,
+  tone = "accent",
+  label,
+}: {
+  value: number;
+  segments?: number;
+  tone?: Tone;
+  label?: string;
+}) {
+  const active = Math.max(
+    1,
+    Math.round((Math.max(0, Math.min(100, value)) / 100) * segments),
+  );
+  return (
+    <div
+      className="flex flex-col-reverse gap-[3px]"
+      role="img"
+      aria-label={`${label ?? "Level"}: ${Math.round(value)} percent`}
+    >
+      {Array.from({ length: segments }, (_, i) => (
+        <span
+          key={i}
+          className={cn(
+            "h-1 w-4 rounded-xs transition-colors duration-200 ease-out",
+            i < active ? fills[tone] : "bg-line",
+          )}
+          style={i < active ? { opacity: 0.85 } : undefined}
+        />
+      ))}
+    </div>
+  );
+}
+
 /** Segmented risk meter — discrete ticks read faster than a continuous bar. */
 export function SegmentMeter({
   value,
