@@ -79,7 +79,7 @@ function Cell({
             <span
               className={cn(
                 "text-label tnum font-medium",
-                up ? "text-profit" : "text-loss",
+                up ? "text-ink" : "text-loss",
               )}
             >
               {sign(cell.ret)}
