@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { TrendingDown, TrendingUp } from "lucide-react";
 import { motion } from "motion/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { SegmentedControl } from "@/components/ui/input";
+import { MenuSelect } from "@/components/ui/select";
 import {
   byMonth,
   byWeekday,
@@ -50,10 +50,9 @@ const barVariants = {
 
 /**
  * "When do I make money?" in the reference activity-card layout: the headline
- * return sits on the left, a bar per period fills the rest. Bars carry the
- * app's own P&L inks — green for a profitable period, red for a losing one —
- * so colour follows the SIGN of each period's return, never its rank.
- * Hovering a bar raises the full figures for that period.
+ * return sits on the left, a bar per period fills the rest. Bars are plain
+ * ink like the reference — magnitude is the bar's job, and the sign is read
+ * from the headline and the hover figures, which keep the P&L inks.
  */
 export function PerfBreakdown({ account }: { account: Account }) {
   const [view, setView] = useState<View>("Day");
@@ -94,7 +93,7 @@ export function PerfBreakdown({ account }: { account: Account }) {
             Win rate and return by {view.toLowerCase()}
           </p>
         </div>
-        <SegmentedControl
+        <MenuSelect
           options={VIEWS}
           value={view}
           onChange={setView}
@@ -131,7 +130,7 @@ export function PerfBreakdown({ account }: { account: Account }) {
             variants={chartVariants}
             initial="hidden"
             animate="visible"
-            className="flex h-32 w-full items-end justify-between gap-2"
+            className="flex h-28 w-full items-end justify-between gap-2"
             role="img"
             aria-label={`Return by ${view.toLowerCase()}: ${rows
               .map(
@@ -156,8 +155,8 @@ export function PerfBreakdown({ account }: { account: Account }) {
                     variants={barVariants}
                     style={{ height: `${height}%`, transformOrigin: "bottom" }}
                     className={cn(
-                      "w-full rounded-md transition-[filter] duration-150 ease-out group-hover:brightness-115",
-                      pos ? "bg-profit" : "bg-loss",
+                      "w-full max-w-9 rounded-md bg-ink",
+                      "transition-opacity duration-150 ease-out group-hover:opacity-80",
                     )}
                   />
                   <span className="text-[11px] text-ink-muted">{d.label}</span>
