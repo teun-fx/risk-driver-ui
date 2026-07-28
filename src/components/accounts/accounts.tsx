@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { motion } from "motion/react";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
@@ -98,13 +99,13 @@ function ReturnMeter({ value }: { value: number | null }) {
   const up = value >= 0;
   return (
     <span className="flex items-center gap-3">
-      <span className="flex gap-[3px]" aria-hidden>
+      <span className="flex gap-1" aria-hidden>
         {Array.from({ length: 10 }, (_, i) => (
           <span
             key={i}
             className={cn(
-              "h-4 w-1.5 rounded-xs",
-              i < lit ? (up ? "bg-profit" : "bg-loss") : "bg-line",
+              "h-5 w-1.5 rounded-full transition-colors duration-500",
+              i < lit ? (up ? "bg-profit" : "bg-loss") : "border border-line bg-raised",
             )}
             style={i < lit ? { opacity: 0.85 } : undefined}
           />
@@ -128,11 +129,27 @@ const STATUS_CHIP: Record<StatusTone, string> = {
   inactive: "border-loss/40 bg-loss-soft text-loss",
 };
 
-/* Faint status wash across the whole row card — the reference's tinting. */
-const ROW_TINT: Record<StatusTone, string> = {
-  active: "bg-profit/[0.03] hover:bg-profit/[0.06]",
-  paused: "bg-warn/[0.04] hover:bg-warn/[0.07]",
-  inactive: "bg-loss/[0.03] hover:bg-loss/[0.06]",
+/* The reference's status tint: a gradient entering from the row's right
+   edge, not a full wash. Colour vars match the status chip. */
+const ROW_GRADIENT: Record<StatusTone, string> = {
+  active: "var(--color-profit)",
+  paused: "var(--color-warn)",
+  inactive: "var(--color-loss)",
+};
+
+/* Reference entrance: rows spring in staggered, from blur and offset. */
+const listVariants = {
+  visible: { transition: { staggerChildren: 0.08, delayChildren: 0.1 } },
+};
+const rowVariants = {
+  hidden: { opacity: 0, x: -25, scale: 0.95, filter: "blur(4px)" },
+  visible: {
+    opacity: 1,
+    x: 0,
+    scale: 1,
+    filter: "blur(0px)",
+    transition: { type: "spring" as const, stiffness: 400, damping: 28, mass: 0.6 },
+  },
 };
 
 /* One grid template shared by the header row and every account card, so the
@@ -272,18 +289,33 @@ export function Accounts() {
     const status = accountStatus(a);
     const start = startDate(a);
     return (
-      <li
+      <motion.li
         role="link"
         tabIndex={0}
+        variants={rowVariants}
+        whileHover={{
+          y: -1,
+          transition: { type: "spring", stiffness: 400, damping: 25 },
+        }}
         onClick={() => router.push(`/accounts/${a.id}`)}
         onKeyDown={(e) => e.key === "Enter" && router.push(`/accounts/${a.id}`)}
         className={cn(
           GRID,
-          "group cursor-pointer rounded-lg border border-line px-4 py-3",
-          "transition-colors duration-150 ease-out",
-          ROW_TINT[status.tone],
+          "group relative isolate cursor-pointer overflow-hidden rounded-lg border border-line bg-raised/50 px-4 py-3",
+          "transition-colors duration-150 ease-out hover:border-line-strong",
         )}
       >
+        {/* Status gradient entering from the right — the reference's tint. */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 -z-10"
+          style={{
+            backgroundImage: `linear-gradient(to left, color-mix(in srgb, ${ROW_GRADIENT[status.tone]} 10%, transparent), transparent)`,
+            backgroundSize: "30% 100%",
+            backgroundPosition: "right",
+            backgroundRepeat: "no-repeat",
+          }}
+        />
         <span className="min-w-0">
           <span className="block truncate text-body font-medium text-ink">
             {a.name}
@@ -343,7 +375,7 @@ export function Accounts() {
             {status.label}
           </span>
         </span>
-      </li>
+      </motion.li>
     );
   }
 
@@ -401,9 +433,12 @@ export function Accounts() {
                   <span>Return</span>
                   <span className="text-right">Status</span>
                 </div>
-                <ul
+                <motion.ul
                   aria-label="Trading accounts with balance, type, start date, strategy, return and status"
                   className="space-y-2"
+                  variants={listVariants}
+                  initial="hidden"
+                  animate="visible"
                 >
                   {imported.map((a) => (
                     <Row key={a.id} a={a} />
@@ -411,7 +446,7 @@ export function Accounts() {
                   {demos.map((a) => (
                     <Row key={a.id} a={a} demo />
                   ))}
-                </ul>
+                </motion.ul>
               </div>
             </div>
           )}
