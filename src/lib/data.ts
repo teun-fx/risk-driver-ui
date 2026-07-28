@@ -910,6 +910,87 @@ export function returnComparison(account: Account) {
   return { points, bands };
 }
 
+export type EquityRiskPoint = {
+  date: string;
+  /** Cumulative return since the first day, in percent. */
+  ret: number;
+  /** Percent below the running equity peak — always <= 0. */
+  dd: number;
+};
+
+/**
+ * Everything the combined equity/underwater chart needs, on one aligned daily
+ * axis so the two stacked panels share an x-domain exactly.
+ *
+ * `stagnation` is the longest stretch the account went without setting a new
+ * equity high — measured peak date to the day that peak was finally exceeded,
+ * and left open-ended if it never was.
+ */
+export function equityRiskSeries(account: Account) {
+  const daily = dailyEquityFor(account);
+  const start = daily[0]?.equity ?? 1;
+
+  const points: EquityRiskPoint[] = [];
+  const highs: string[] = [];
+  let peak = start;
+  let peakIdx = 0;
+  let stag = { fromIdx: 0, toIdx: 0, days: 0, ongoing: false };
+
+  const dayGap = (a: number, b: number) =>
+    Math.round(
+      (daily[b].date.getTime() - daily[a].date.getTime()) / 86_400_000,
+    );
+
+  daily.forEach((p, i) => {
+    if (p.equity > peak) {
+      const days = dayGap(peakIdx, i);
+      if (days > stag.days) stag = { fromIdx: peakIdx, toIdx: i, days, ongoing: false };
+      peak = p.equity;
+      peakIdx = i;
+      if (i > 0) highs.push(p.date.toISOString().slice(0, 10));
+    }
+    points.push({
+      date: p.date.toISOString().slice(0, 10),
+      ret: ((p.equity - start) / start) * 100,
+      dd: peak ? ((p.equity - peak) / peak) * 100 : 0,
+    });
+  });
+
+  // The run still in progress counts too — a record-long flat patch that has
+  // not ended yet is exactly the one worth showing.
+  if (daily.length > 1) {
+    const days = dayGap(peakIdx, daily.length - 1);
+    if (days > stag.days)
+      stag = { fromIdx: peakIdx, toIdx: daily.length - 1, days, ongoing: true };
+  }
+
+  const lastDate = daily[daily.length - 1]?.date;
+  const bands = drawdownEpisodes(account)
+    .slice(0, 5)
+    .map((e) => ({
+      from: e.start.toISOString().slice(0, 10),
+      to: (e.recovered ?? lastDate).toISOString().slice(0, 10),
+    }));
+
+  return {
+    points,
+    bands,
+    highs,
+    stagnation: points.length
+      ? {
+          from: points[stag.fromIdx].date,
+          to: points[stag.toIdx].date,
+          days: stag.days,
+          ongoing: stag.ongoing,
+        }
+      : null,
+    /** Endpoint-to-endpoint reference line, the reference chart's straight red line. */
+    trend: points.length
+      ? { from: points[0].ret, to: points[points.length - 1].ret }
+      : null,
+  };
+}
+
 /** Rolling 30-day volatility, annualised, in percent. */
 export function rollingVolatility(account: Account, window = 30) {
   const daily = dailyEquityFor(account);

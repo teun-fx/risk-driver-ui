@@ -2,19 +2,16 @@
 
 import { useMemo } from "react";
 import {
-  Area,
-  AreaChart,
   CartesianGrid,
   Line,
   LineChart,
-  ReferenceArea,
   ReferenceLine,
   ResponsiveContainer,
   XAxis,
   YAxis,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { UnderwaterPlot } from "@/components/analytics/underwater-plot";
+import { EquityRiskChart } from "@/components/analytics/equity-risk-chart";
 import {
   CROSSHAIR,
   ChartReadout,
@@ -24,7 +21,6 @@ import {
 import {
   dailyEquityFor,
   drawdownEpisodes,
-  returnComparison,
   riskAnalytics,
   rollingVolatility,
   type Account,
@@ -44,140 +40,6 @@ function fullDate(d: Date | string) {
     month: "short",
     day: "numeric",
   });
-}
-
-/**
- * Cumulative return with the five worst drawdown windows shaded — the
- * reference's "drawdown comparison" read, on the app's tokens. The bands make
- * the pain periods legible without a second axis.
- */
-function DrawdownComparison({ account }: { account: Account }) {
-  const { points, bands } = useMemo(() => returnComparison(account), [account]);
-  const last = points[points.length - 1]?.ret ?? 0;
-  const { index, handlers } = usePlotHover({
-    count: points.length,
-    padLeft: 8 + 48,
-    padRight: 16,
-  });
-
-  const hoverAt = index === null ? null : points[index];
-  const at = hoverAt ?? points[points.length - 1];
-  const peak = Math.max(...points.map((p) => p.ret));
-  // How far the hovered point sits below the running peak up to that point.
-  const runPeak = Math.max(
-    ...points.slice(0, (index ?? points.length - 1) + 1).map((p) => p.ret),
-  );
-  const below = (at?.ret ?? 0) - runPeak;
-  const inBand = bands.some(
-    (b) => at && at.date >= b.from && at.date <= b.to,
-  );
-
-  return (
-    <Card className="flex min-w-0 flex-col">
-      <CardHeader className="items-center">
-        <div>
-          <CardTitle>Drawdown comparison</CardTitle>
-          <div className="mt-1.5 flex items-baseline gap-2.5">
-            <span
-              className={cn(
-                "text-metric",
-                last >= 0 ? "text-profit" : "text-loss",
-              )}
-            >
-              {last >= 0 ? "+" : "−"}
-              {Math.abs(last).toFixed(1)}%
-            </span>
-            <span className="text-label text-ink-muted">
-              cumulative return · shaded areas mark the 5 worst drawdowns
-            </span>
-          </div>
-        </div>
-      </CardHeader>
-
-      <div className="h-[300px] w-full min-w-0 cursor-crosshair px-1 pb-3" {...handlers}>
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={points} margin={{ top: 4, right: 16, bottom: 0, left: 8 }}>
-            <defs>
-              <linearGradient id="ddcFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="var(--color-chart-1)" stopOpacity={0.14} />
-                <stop offset="100%" stopColor="var(--color-chart-1)" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid stroke="var(--color-chart-grid)" vertical={false} />
-            <XAxis
-              dataKey="date"
-              tickFormatter={shortDate}
-              tickLine={false}
-              axisLine={false}
-              minTickGap={60}
-              tick={{ fill: "var(--color-ink-muted)", fontSize: 11 }}
-              dy={6}
-            />
-            <YAxis
-              tickFormatter={(v: number) => `${Math.round(v)}%`}
-              tickLine={false}
-              axisLine={false}
-              width={48}
-              tick={{ fill: "var(--color-ink-muted)", fontSize: 11 }}
-            />
-            {/* Crosshair — the figures live in the readout row below. */}
-            {hoverAt && <ReferenceLine x={hoverAt.date} {...CROSSHAIR} />}
-            {/* The pain windows. Bands sit behind the line. */}
-            {bands.map((b, i) => (
-              <ReferenceArea
-                key={i}
-                x1={b.from}
-                x2={b.to}
-                fill="var(--color-loss)"
-                fillOpacity={0.09}
-                stroke="var(--color-loss)"
-                strokeOpacity={0.18}
-              />
-            ))}
-            <ReferenceLine y={0} stroke="var(--color-line-strong)" strokeWidth={1} />
-            <Area
-              type="monotone"
-              dataKey="ret"
-              stroke="var(--color-chart-1)"
-              strokeWidth={2}
-              fill="url(#ddcFill)"
-              dot={false}
-              activeDot={{
-                r: 4,
-                fill: "var(--color-chart-1)",
-                stroke: "var(--color-surface)",
-                strokeWidth: 2,
-              }}
-              isAnimationActive={false}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
-
-      <div className="px-5 pb-4">
-        <ChartReadout>
-          <Read label={at ? fullDate(at.date) : "—"} value="" plain />
-          <Read
-            label="Cumulative return"
-            value={`${(at?.ret ?? 0) >= 0 ? "+" : "−"}${Math.abs(at?.ret ?? 0).toFixed(2)}%`}
-            colorVar="--color-chart-1"
-          />
-          <Read
-            label="Below running peak"
-            value={below >= -0.005 ? "At peak" : `−${Math.abs(below).toFixed(2)}%`}
-            colorVar="--color-loss"
-          />
-          <Read
-            label="Best so far"
-            value={`${peak >= 0 ? "+" : "−"}${Math.abs(peak).toFixed(2)}%`}
-            plain
-          />
-          <Read label="In drawdown window" value={inBand ? "Yes" : "No"} plain />
-          <Read label="Windows shaded" value={`${bands.length}`} plain />
-        </ChartReadout>
-      </div>
-    </Card>
-  );
 }
 
 /** Rolling 30-day annualised volatility — the reference's volatility panel. */
@@ -423,15 +285,11 @@ function WorstDrawdownsCard({ account }: { account: Account }) {
 export function RiskTab({ account }: { account: Account }) {
   return (
     <>
-      <section aria-label="Drawdown comparison">
-        <DrawdownComparison account={account} />
+      <section aria-label="Equity curve and drawdown">
+        <EquityRiskChart account={account} />
       </section>
 
-      <section
-        aria-label="Underwater and volatility"
-        className="grid grid-cols-1 gap-5 xl:grid-cols-2"
-      >
-        <UnderwaterPlot account={account} range="Max" height={240} />
+      <section aria-label="Volatility">
         <VolatilityChart account={account} />
       </section>
 
