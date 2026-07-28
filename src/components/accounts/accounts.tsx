@@ -128,11 +128,17 @@ const STATUS_CHIP: Record<StatusTone, string> = {
   inactive: "border-loss/40 bg-loss-soft text-loss",
 };
 
+/* Faint status wash across the whole row card — the reference's tinting. */
 const ROW_TINT: Record<StatusTone, string> = {
-  active: "hover:bg-profit/[0.04]",
-  paused: "hover:bg-warn/[0.04]",
-  inactive: "hover:bg-loss/[0.04]",
+  active: "bg-profit/[0.03] hover:bg-profit/[0.06]",
+  paused: "bg-warn/[0.04] hover:bg-warn/[0.07]",
+  inactive: "bg-loss/[0.03] hover:bg-loss/[0.06]",
 };
+
+/* One grid template shared by the header row and every account card, so the
+   columns stay aligned without a <table>. */
+const GRID =
+  "grid grid-cols-[minmax(160px,1.5fr)_minmax(90px,1fr)_minmax(90px,1fr)_minmax(100px,1fr)_minmax(80px,0.9fr)_minmax(170px,1.3fr)_minmax(120px,auto)] items-center gap-x-4";
 
 export function Accounts() {
   const { accounts, imported, addAccount, updateAccount, removeAccount } =
@@ -260,99 +266,84 @@ export function Accounts() {
     setEditTarget(null);
   }
 
-  /* -------- table row -------- */
+  /* -------- account row card -------- */
   function Row({ a, demo }: { a: Account; demo?: boolean }) {
     const ret = netReturn(a);
     const status = accountStatus(a);
     const start = startDate(a);
     return (
-      <tr
+      <li
         role="link"
         tabIndex={0}
         onClick={() => router.push(`/accounts/${a.id}`)}
         onKeyDown={(e) => e.key === "Enter" && router.push(`/accounts/${a.id}`)}
         className={cn(
-          "group cursor-pointer border-b border-line transition-colors duration-150 ease-out last:border-0",
+          GRID,
+          "group cursor-pointer rounded-lg border border-line px-4 py-3",
+          "transition-colors duration-150 ease-out",
           ROW_TINT[status.tone],
         )}
       >
-        <td className="px-5 py-3.5">
-          <span className="flex items-center gap-3">
-            <span
-              className={cn(
-                "flex size-8 shrink-0 items-center justify-center rounded-md",
-                demo ? "bg-raised" : "bg-overlay",
-              )}
-            >
-              <FileText
-                className={cn("size-4", demo ? "text-ink-muted" : "text-ink-secondary")}
-                aria-hidden
-              />
-            </span>
-            <span className="min-w-0">
-              <span className="block truncate text-body font-medium text-ink">
-                {a.name}
-              </span>
-              <span className="block truncate text-label text-ink-muted">
-                {a.trades?.length ?? "—"} trades
-              </span>
-            </span>
+        <span className="min-w-0">
+          <span className="block truncate text-body font-medium text-ink">
+            {a.name}
           </span>
-        </td>
+          <span className="block truncate text-label text-ink-muted">
+            {a.trades?.length ?? "—"} trades
+          </span>
+        </span>
 
-        <td className="px-5 py-3.5 text-body whitespace-nowrap text-ink-secondary">
-          {accountKind(a)}
-        </td>
-
-        <td className="px-5 py-3.5 text-body tnum whitespace-nowrap text-ink-secondary">
-          {start ? dayMonthYear(start) : "—"}
-        </td>
-
-        <td className="px-5 py-3.5 text-right text-body font-medium tnum whitespace-nowrap text-ink">
+        <span className="text-body font-medium tnum whitespace-nowrap text-ink">
           {money(a.equity)}
-        </td>
+        </span>
 
-        <td className="px-5 py-3.5">
-          <ReturnMeter value={ret} />
-        </td>
+        <span className="truncate text-body text-ink-secondary">
+          {accountKind(a)}
+        </span>
 
-        <td className="px-5 py-3.5">
-          <span className="flex items-center justify-end gap-1">
+        <span className="text-body tnum whitespace-nowrap text-ink-secondary">
+          {start ? dayMonthYear(start) : "—"}
+        </span>
+
+        {/* Strategy links in once the strategies tab exists. */}
+        <span className="text-body text-ink-muted">—</span>
+
+        <ReturnMeter value={ret} />
+
+        <span className="flex items-center justify-end gap-1">
+          {!demo && (
             <span
-              className={cn(
-                "inline-flex items-center rounded-md border px-2.5 py-1 text-label font-medium",
-                STATUS_CHIP[status.tone],
-              )}
+              className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-150 ease-out group-hover:opacity-100 focus-within:opacity-100"
+              onClick={(e) => e.stopPropagation()}
             >
-              {status.label}
-            </span>
-
-            {!demo && (
-              <span
-                className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-150 ease-out group-hover:opacity-100 focus-within:opacity-100"
-                onClick={(e) => e.stopPropagation()}
+              <RowAction label={`Edit ${a.name}`} onClick={() => openEdit(a)}>
+                <Pencil className="size-4" aria-hidden />
+              </RowAction>
+              <RowAction
+                label={`Replace statement for ${a.name}`}
+                onClick={() => openReplace(a)}
               >
-                <RowAction label={`Edit ${a.name}`} onClick={() => openEdit(a)}>
-                  <Pencil className="size-4" aria-hidden />
-                </RowAction>
-                <RowAction
-                  label={`Replace statement for ${a.name}`}
-                  onClick={() => openReplace(a)}
-                >
-                  <RefreshCw className="size-4" aria-hidden />
-                </RowAction>
-                <RowAction
-                  label={`Remove ${a.name}`}
-                  danger
-                  onClick={() => removeAccount(a.id)}
-                >
-                  <Trash2 className="size-4" aria-hidden />
-                </RowAction>
-              </span>
+                <RefreshCw className="size-4" aria-hidden />
+              </RowAction>
+              <RowAction
+                label={`Remove ${a.name}`}
+                danger
+                onClick={() => removeAccount(a.id)}
+              >
+                <Trash2 className="size-4" aria-hidden />
+              </RowAction>
+            </span>
+          )}
+          <span
+            className={cn(
+              "inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium",
+              STATUS_CHIP[status.tone],
             )}
+          >
+            {status.label}
           </span>
-        </td>
-      </tr>
+        </span>
+      </li>
     );
   }
 
@@ -393,44 +384,35 @@ export function Accounts() {
               </Button>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-left">
-                <caption className="sr-only">
-                  Trading accounts with type, start date, equity, return and
-                  status
-                </caption>
-                <thead className="bg-raised">
-                  <tr>
-                    {[
-                      { label: "Account", align: "" },
-                      { label: "Type", align: "" },
-                      { label: "Start date", align: "" },
-                      { label: "Equity", align: "text-right" },
-                      { label: "Return", align: "" },
-                      { label: "Status", align: "text-right" },
-                    ].map((h) => (
-                      <th
-                        key={h.label}
-                        scope="col"
-                        className={cn(
-                          "border-y border-line px-5 py-2.5 text-eyebrow font-medium whitespace-nowrap text-ink-muted",
-                          h.align,
-                        )}
-                      >
-                        {h.label}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
+            <div className="overflow-x-auto px-4 pb-4">
+              <div className="min-w-[880px]">
+                <div
+                  className={cn(
+                    GRID,
+                    "px-4 py-2.5 text-eyebrow font-medium text-ink-muted",
+                  )}
+                  aria-hidden
+                >
+                  <span>Account</span>
+                  <span>Balance</span>
+                  <span>Type</span>
+                  <span>Start date</span>
+                  <span>Strategy</span>
+                  <span>Return</span>
+                  <span className="text-right">Status</span>
+                </div>
+                <ul
+                  aria-label="Trading accounts with balance, type, start date, strategy, return and status"
+                  className="space-y-2"
+                >
                   {imported.map((a) => (
                     <Row key={a.id} a={a} />
                   ))}
                   {demos.map((a) => (
                     <Row key={a.id} a={a} demo />
                   ))}
-                </tbody>
-              </table>
+                </ul>
+              </div>
             </div>
           )}
         </Card>

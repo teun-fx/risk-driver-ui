@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, Wallet } from "lucide-react";
 import { type Account } from "@/lib/data";
 import { useAccount } from "@/components/account-context";
+import { GlassLayers } from "@/components/ui/button";
 import { cn, money } from "@/lib/utils";
 
 export function AccountSelect({
@@ -40,12 +41,12 @@ export function AccountSelect({
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          "flex h-9 w-full items-center gap-2.5 rounded-md border border-line bg-raised px-3",
-          "transition-colors duration-150 ease-out hover:border-line-strong",
-          open && "border-line-strong",
+          "relative isolate flex h-9 w-full items-center gap-2.5 rounded-md px-3",
+          "transition-[filter] duration-150 ease-out hover:brightness-110",
         )}
       >
-        <Wallet className="size-4 shrink-0 text-ink-muted" aria-hidden />
+        <GlassLayers />
+        <Wallet className="z-10 size-4 shrink-0 text-ink-muted" aria-hidden />
         <span className="min-w-0 flex-1 truncate text-left text-label font-medium text-ink">
           {value.name}
         </span>

@@ -24,7 +24,7 @@ const sizes: Record<Size, string> = {
   md: "h-9 gap-2 px-3.5 text-label",
 };
 
-function GlassLayers() {
+export function GlassLayers() {
   return (
     <>
       <span

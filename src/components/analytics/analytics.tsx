@@ -11,6 +11,7 @@ import { RiskTab } from "@/components/analytics/risk-tab";
 import { MonteCarloTab } from "@/components/analytics/monte-carlo";
 import { TradesTab } from "@/components/analytics/trades-tab";
 import { useAccount } from "@/components/account-context";
+import { GlassLayers } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const TABS = [
@@ -45,15 +46,18 @@ function TabBar({
             aria-selected={selected}
             onClick={() => onChange(t.id)}
             className={cn(
-              "flex h-9 items-center gap-2 rounded-full px-4 text-label font-medium",
+              "flex h-9 items-center gap-2 rounded-md px-4 text-label font-medium",
               "transition-colors duration-150 ease-out",
               selected
-                ? "border border-line bg-overlay text-ink shadow-pop"
-                : "border border-transparent text-ink-muted hover:bg-raised hover:text-ink",
+                ? "relative isolate text-ink"
+                : "text-ink-muted hover:bg-raised hover:text-ink",
             )}
           >
-            <Icon className="size-4" aria-hidden />
-            {t.label}
+            {selected && <GlassLayers />}
+            <span className="z-10 flex items-center gap-2">
+              <Icon className="size-4" aria-hidden />
+              {t.label}
+            </span>
           </button>
         );
       })}
