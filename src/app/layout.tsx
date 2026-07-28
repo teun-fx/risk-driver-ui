@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Geist } from "next/font/google";
 import { AccountProvider } from "@/components/account-context";
 import { AppShell } from "@/components/dashboard/app-shell";
 import "./globals.css";
 
-const inter = Inter({
-  variable: "--font-inter",
+const geist = Geist({
+  variable: "--font-geist",
   subsets: ["latin"],
   display: "swap",
 });
@@ -21,19 +21,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    // suppressHydrationWarning: the theme script below may add the `light`
-    // class before React hydrates, which is expected, not a mismatch bug.
-    <html lang="en" className={`${inter.variable} h-full`} suppressHydrationWarning>
-      <head>
-        {/* Apply a saved light theme before first paint to avoid a dark flash.
-            Dark is the default and needs no class. */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html:
-              "try{if(localStorage.getItem('riskdriver.theme')==='light')document.documentElement.classList.add('light')}catch(e){}",
-          }}
-        />
-      </head>
+    <html lang="en" className={`${geist.variable} h-full`}>
       <body className="min-h-full">
         <AccountProvider>
           <AppShell>{children}</AppShell>

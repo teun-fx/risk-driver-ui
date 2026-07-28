@@ -2,6 +2,7 @@
 
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { Header } from "@/components/dashboard/header";
+import { GlassFilter } from "@/components/ui/button";
 import { useAccount } from "@/components/account-context";
 
 /** Chrome shared by every page: rail, header, and the content column. */
@@ -10,6 +11,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-dvh">
+      {/* SVG displacement filter shared by every glass button. */}
+      <GlassFilter />
       <Sidebar />
 
       <div className="flex min-w-0 flex-1 flex-col">

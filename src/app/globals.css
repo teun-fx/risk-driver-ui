@@ -1,21 +1,22 @@
 @import "tailwindcss";
 
 /* ============================================================
-   RISK DRIVER — DARK FINTECH DESIGN SYSTEM
-   Deep charcoal base, one muted-teal accent, hairline borders.
+   RISK DRIVER — DARK SHADCN DESIGN SYSTEM
+   Zinc-black base, near-white primary, hairline borders, soft
+   shadows. Dark only — the light theme returns later.
    Everything is a token. Never hard-code a hex in a component.
    ============================================================ */
 
 @theme {
-  /* ---- Surfaces: a four-step charcoal ladder, never pure black ---- */
-  --color-base: #0d1012; /* app background */
-  --color-surface: #14181b; /* cards, sidebar */
-  --color-raised: #191e22; /* nested panels, table header */
-  --color-overlay: #1f252a; /* menus, tooltips, hover fills */
+  /* ---- Surfaces: a four-step zinc ladder ---- */
+  --color-base: #09090b; /* app background */
+  --color-surface: #111113; /* cards, sidebar */
+  --color-raised: #18181b; /* nested panels, table header */
+  --color-overlay: #1f1f23; /* menus, tooltips, hover fills */
 
   /* ---- Borders: hairlines, two weights only ---- */
-  --color-line: #232a2f;
-  --color-line-strong: #2f383e;
+  --color-line: #27272a;
+  --color-line-strong: #3f3f46;
 
   /* Data-grid hairline — the recessive rule used inside charts and the
      monthly-returns grid. Sourced from the :root chart ramp below so the
@@ -23,16 +24,16 @@
   --color-grid: var(--color-chart-grid);
 
   /* ---- Ink ---- */
-  --color-ink: #e6eaec;
-  --color-ink-secondary: #97a3ab;
-  --color-ink-muted: #626d75;
+  --color-ink: #fafafa;
+  --color-ink-secondary: #a1a1aa;
+  --color-ink-muted: #71717a;
 
-  /* ---- Accent: one muted teal — focus, active nav, primary series ---- */
-  --color-accent: #2f9e8b;
-  --color-accent-hover: #37b39d;
-  --color-accent-press: #278275;
-  --color-accent-soft: #14312e;
-  --color-on-accent: #04120f;
+  /* ---- Accent: near-white primary — focus, active nav, buttons ---- */
+  --color-accent: #fafafa;
+  --color-accent-hover: #ffffff;
+  --color-accent-press: #e4e4e7;
+  --color-accent-soft: #27272a;
+  --color-on-accent: #09090b;
 
   /* ---- Semantic P&L. Vivid, not muted — these carry the energy of the
      interface. Sourced from the Financial Dashboard palette in the
@@ -54,13 +55,13 @@
   --color-warn: #eab308;
   --color-warn-soft: #2e2510;
 
-  /* ---- Radius: restrained. 10px is the ceiling. ---- */
-  --radius-xs: 3px;
-  --radius-sm: 5px;
-  --radius-md: 7px;
-  --radius-lg: 10px;
+  /* ---- Radius: shadcn scale. 12px is the ceiling. ---- */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
 
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
 
   /* ---- Shadow: only on genuinely floating layers ---- */
   --shadow-pop: 0 12px 32px -8px rgb(0 0 0 / 0.7);
@@ -75,16 +76,16 @@
    referenced dynamically (e.g. `var(--color-chart-${i})`) and they would
    silently resolve to nothing.
 
-   Validated against surface #14181b — lightness band, chroma floor, CVD
-   separation, normal-vision floor and contrast all PASS. Re-run the
-   palette validator before changing any value here.
+   Validated against the previous #14181b surface; the new #111113 ground
+   is darker still, which only increases separation. Re-run the palette
+   validator before changing any series value here.
    ============================================================ */
 :root {
   --color-chart-1: #2f9e8b;
   --color-chart-2: #7b7fd4;
   --color-chart-3: #ab7a33;
   --color-chart-4: #b5679a;
-  --color-chart-grid: #1e2429;
+  --color-chart-grid: #1f1f23;
 
   /* Highlight stops for bar gradients. Same reason as the ramp above: these
      are only ever read through var() inside inline styles, so @theme would
@@ -92,70 +93,6 @@
      `transparent` — an invalid stop kills the whole gradient, not just itself. */
   --color-profit-glow: #4ade80;
   --color-loss-glow: #f87171;
-}
-
-/* ============================================================
-   LIGHT THEME — colour overrides only.
-
-   Toggled by adding the `light` class to <html> (see ThemeToggle in the
-   sidebar). Every token the app uses is re-pointed here, so components,
-   typography, spacing and logic are untouched — only surfaces and colours
-   change. NOT an automatic flip of the dark values: each step was chosen
-   for a light ground, and the chart ramp + P&L pair were re-validated with
-   the dataviz palette validator against surface #f7f8f9 (all checks pass;
-   green/red CVD closeness is inherent and mitigated by sign/arrow cues,
-   same as dark).
-   ============================================================ */
-html.light {
-  color-scheme: light;
-
-  /* Surfaces: airy blue-grey ground, white cards — reference-board style. */
-  --color-base: #eef1f4;
-  --color-surface: #ffffff;
-  --color-raised: #f3f5f7;
-  --color-overlay: #ffffff;
-
-  /* Hairlines darker than surfaces (inverse of dark mode). */
-  --color-line: #e3e7ec;
-  --color-line-strong: #cdd4db;
-
-  /* Ink flips to slate on white. */
-  --color-ink: #1c2429;
-  --color-ink-secondary: #566470;
-  --color-ink-muted: #8494a0;
-
-  /* Accent: same teal identity, deepened for white ground. */
-  --color-accent: #0e8a74;
-  --color-accent-hover: #0b7361;
-  --color-accent-press: #095e50;
-  --color-accent-soft: #d9f0ea;
-  --color-on-accent: #ffffff;
-
-  /* Semantic P&L — validated on #f7f8f9. */
-  --color-profit: #16a34a;
-  --color-profit-soft: #e3f5e9;
-  --color-profit-glow: #22c55e;
-  --color-loss: #dc2626;
-  --color-loss-soft: #fbe7e7;
-  --color-loss-glow: #ef4444;
-  --color-warn: #b45309;
-  --color-warn-soft: #f7ecd9;
-
-  /* Chart ramp — validated on #f7f8f9 (chroma, CVD, contrast all pass). */
-  --color-chart-1: #0e8a74;
-  --color-chart-2: #5257c4;
-  --color-chart-3: #96621a;
-  --color-chart-4: #a34a82;
-  --color-chart-grid: #e8ebee;
-
-  /* Floating layers need a softer shadow on light. */
-  --shadow-pop: 0 12px 32px -8px rgb(15 23 32 / 0.18);
-}
-
-/* Light-mode scrollbars follow the flipped surfaces. */
-html.light ::-webkit-scrollbar-thumb {
-  background: var(--color-line-strong);
-  border-color: var(--color-base);
 }
 
 /* ============================================================
