@@ -87,6 +87,14 @@
   --color-chart-4: #b5679a;
   --color-chart-grid: #1f1f23;
 
+  /* Picture-3 chart kit (ui/area-chart) reads these — mapped onto the
+     app's tokens so the kit and the rest of the UI can never drift. */
+  --chart-background: var(--color-surface);
+  --chart-line-primary: var(--color-chart-1);
+  --chart-line-secondary: var(--color-chart-2);
+  --chart-crosshair: var(--color-line-strong);
+  --chart-grid: var(--color-chart-grid);
+
   /* Highlight stops for bar gradients. Same reason as the ramp above: these
      are only ever read through var() inside inline styles, so @theme would
      tree-shake them and every gradient using one would silently collapse to

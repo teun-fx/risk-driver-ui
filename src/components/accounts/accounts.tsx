@@ -389,7 +389,7 @@ export function Accounts() {
                 <div
                   className={cn(
                     GRID,
-                    "px-4 py-2.5 text-eyebrow font-medium text-ink-muted",
+                    "px-[17px] py-2.5 text-eyebrow font-medium text-ink-muted",
                   )}
                   aria-hidden
                 >

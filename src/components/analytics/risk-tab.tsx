@@ -2,22 +2,15 @@
 
 import { useMemo } from "react";
 import {
-  CartesianGrid,
-  Line,
-  LineChart,
-  ReferenceLine,
-  ResponsiveContainer,
-  XAxis,
-  YAxis,
-} from "recharts";
+  Area as VxArea,
+  AreaChart as VxAreaChart,
+  ChartTooltip as VxChartTooltip,
+  Grid as VxGrid,
+  XAxis as VxXAxis,
+  YAxis as VxYAxis,
+} from "@/components/ui/area-chart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EquityRiskChart } from "@/components/analytics/equity-risk-chart";
-import {
-  CROSSHAIR,
-  ChartReadout,
-  Read,
-  usePlotHover,
-} from "@/components/ui/chart-readout";
 import {
   dailyEquityFor,
   drawdownEpisodes,
@@ -27,13 +20,6 @@ import {
 } from "@/lib/data";
 import { cn, money } from "@/lib/utils";
 
-function shortDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-US", {
-    month: "short",
-    year: "2-digit",
-  });
-}
-
 function fullDate(d: Date | string) {
   return new Date(d).toLocaleDateString("en-US", {
     year: "numeric",
@@ -42,24 +28,14 @@ function fullDate(d: Date | string) {
   });
 }
 
-/** Rolling 30-day annualised volatility — the reference's volatility panel. */
+/** Rolling 30-day annualised volatility — picture-3 chart anatomy. */
 function VolatilityChart({ account }: { account: Account }) {
-  const data = useMemo(() => rollingVolatility(account), [account]);
+  const data = useMemo(
+    () =>
+      rollingVolatility(account).map((d) => ({ date: d.date, vol: d.vol })),
+    [account],
+  );
   const latest = data[data.length - 1]?.vol ?? 0;
-  const { index, handlers } = usePlotHover({
-    count: data.length,
-    padLeft: 8 + 44,
-    padRight: 16,
-  });
-
-  const hoverAt = index === null ? null : data[index];
-  const at = hoverAt ?? data[data.length - 1];
-  const vols = data.map((d) => d.vol);
-  const avg = vols.reduce((a, v) => a + v, 0) / (vols.length || 1);
-  // No 0 seed here: the series is strictly positive, so seeding Math.min with
-  // 0 would report a "lowest" the account never had.
-  const hi = vols.length ? Math.max(...vols) : 0;
-  const lo = vols.length ? Math.min(...vols) : 0;
 
   return (
     <Card className="flex min-w-0 flex-col">
@@ -75,63 +51,27 @@ function VolatilityChart({ account }: { account: Account }) {
         </div>
       </CardHeader>
 
-      <div className="h-[240px] w-full min-w-0 cursor-crosshair px-1 pb-3" {...handlers}>
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: 4, right: 16, bottom: 0, left: 8 }}>
-            <CartesianGrid stroke="var(--color-chart-grid)" vertical={false} />
-            <XAxis
-              dataKey="date"
-              tickFormatter={shortDate}
-              tickLine={false}
-              axisLine={false}
-              minTickGap={60}
-              tick={{ fill: "var(--color-ink-muted)", fontSize: 11 }}
-              dy={6}
-            />
-            <YAxis
-              tickFormatter={(v: number) => `${Math.round(v)}%`}
-              tickLine={false}
-              axisLine={false}
-              width={44}
-              tick={{ fill: "var(--color-ink-muted)", fontSize: 11 }}
-            />
-            {/* Crosshair — the figures live in the readout row below. */}
-            {hoverAt && <ReferenceLine x={hoverAt.date} {...CROSSHAIR} />}
-            <Line
-              type="monotone"
-              dataKey="vol"
-              stroke="var(--color-chart-2)"
-              strokeWidth={2}
-              dot={false}
-              activeDot={{
-                r: 4,
-                fill: "var(--color-chart-2)",
-                stroke: "var(--color-surface)",
-                strokeWidth: 2,
-              }}
-              isAnimationActive={false}
-            />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
-
-      <div className="px-5 pb-4">
-        <ChartReadout>
-          <Read label={at ? fullDate(at.date) : "—"} value="" plain />
-          <Read
-            label="Volatility"
-            value={`${(at?.vol ?? 0).toFixed(2)}%`}
-            colorVar="--color-chart-2"
+      <div className="w-full min-w-0 pb-1">
+        <VxAreaChart data={data} height={260} key={account.id}>
+          <VxGrid />
+          <VxArea
+            dataKey="vol"
+            fill="var(--chart-line-secondary)"
+            fillOpacity={0.22}
+            fadeEdges
           />
-          <Read label="Period average" value={`${avg.toFixed(2)}%`} plain />
-          <Read
-            label="vs average"
-            value={`${(at?.vol ?? 0) - avg >= 0 ? "+" : "−"}${Math.abs((at?.vol ?? 0) - avg).toFixed(2)}%`}
-            plain
+          <VxXAxis />
+          <VxYAxis formatValue={(v) => `${v.toFixed(1)}%`} />
+          <VxChartTooltip
+            rows={(point) => [
+              {
+                color: "var(--chart-line-secondary)",
+                label: "Volatility",
+                value: `${(point.vol as number).toFixed(2)}%`,
+              },
+            ]}
           />
-          <Read label="Highest" value={`${hi.toFixed(2)}%`} plain />
-          <Read label="Lowest" value={`${lo.toFixed(2)}%`} plain />
-        </ChartReadout>
+        </VxAreaChart>
       </div>
     </Card>
   );

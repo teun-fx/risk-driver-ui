@@ -3,9 +3,9 @@ import { MONTHS, monthlyReturns, type Account, type MonthCell } from "@/lib/data
 import { cn } from "@/lib/utils";
 
 /**
- * Factsheet-style grid: the figure is plain colored text and a thin bar under
- * each cell carries the magnitude — no background tint. Same anatomy as the
- * reference factsheet layout, translated onto the app's charcoal tokens.
+ * Analytics-table style (the reference's Wide Inline Analytics Table):
+ * balanced spacing, hairline row dividers, and plain figures — positive
+ * months in white ink, negative in red, no magnitude bars.
  *
  * Hovering a month raises a tooltip with that month's return and its
  * intra-month max drawdown. Pure CSS (group-hover), so the component stays a
@@ -20,13 +20,11 @@ function Cell({
   cell,
   month,
   year,
-  max,
   flip = false,
 }: {
   cell: MonthCell | null;
   month: string;
   year: number;
-  max: number;
   /** Render the tooltip below the cell. The scroll wrapper's overflow-x:auto
       forces overflow-y to auto as well, so a tooltip opening upward from the
       top row would be clipped — the first row flips downward instead. */
@@ -44,29 +42,21 @@ function Cell({
   }
 
   const up = cell.ret >= 0;
-  const width = Math.max(8, (Math.abs(cell.ret) / max) * 100);
 
   return (
     <div
       tabIndex={0}
-      className="group relative flex h-12 flex-col items-center justify-center gap-1.5 rounded-xs outline-none focus-visible:ring-2 focus-visible:ring-accent"
+      className="group relative flex h-12 items-center justify-center rounded-xs outline-none focus-visible:ring-2 focus-visible:ring-accent"
     >
+      {/* Reference style: positive months in plain ink, negative in red. */}
       <span
         className={cn(
-          "text-[11.5px] tnum",
-          up ? "text-profit" : "text-loss",
+          "text-[12.5px] font-medium tnum",
+          up ? "text-ink" : "text-loss",
         )}
       >
         {sign(cell.ret)}
         {Math.abs(cell.ret).toFixed(1)}
-      </span>
-
-      {/* Magnitude bar — the factsheet strip, scaled to the account's largest month. */}
-      <span className="h-[3px] w-full max-w-10 overflow-hidden rounded-full bg-raised">
-        <span
-          className={cn("block h-full rounded-full", up ? "bg-profit" : "bg-loss")}
-          style={{ width: `${width}%`, opacity: 0.85 }}
-        />
       </span>
 
       {/* Tooltip — same surface as the chart tooltips. */}
@@ -110,13 +100,6 @@ function Cell({
 
 export function MonthlyReturns({ account }: { account: Account }) {
   const rows = monthlyReturns(account);
-
-  // Bars scale to this account's own largest month, so a calm account still
-  // shows differentiated strips.
-  const max = Math.max(
-    ...rows.flatMap((r) => r.months.map((m) => Math.abs(m?.ret ?? 0))),
-    1,
-  );
 
   const cumulative =
     (rows.reduce((acc, r) => acc * (1 + r.total / 100), 1) - 1) * 100;
@@ -185,7 +168,7 @@ export function MonthlyReturns({ account }: { account: Account }) {
               <tr key={row.year}>
                 <th
                   scope="row"
-                  className="sticky left-0 z-10 border-t border-grid bg-surface py-0 pr-3 pl-4 text-left text-[12.5px] font-medium tnum text-ink-secondary"
+                  className="sticky left-0 z-10 border-t border-grid bg-surface py-0 pr-3 pl-4 text-left text-[12.5px] font-semibold tnum text-ink"
                 >
                   {row.year}
                 </th>
@@ -196,7 +179,6 @@ export function MonthlyReturns({ account }: { account: Account }) {
                       cell={cell}
                       month={MONTHS[i]}
                       year={row.year}
-                      max={max}
                       flip={rowIndex === 0}
                     />
                   </td>
@@ -206,7 +188,7 @@ export function MonthlyReturns({ account }: { account: Account }) {
                   <span
                     className={cn(
                       "text-[12.5px] font-semibold tnum",
-                      row.total >= 0 ? "text-profit" : "text-loss",
+                      row.total >= 0 ? "text-ink" : "text-loss",
                     )}
                   >
                     {sign(row.total)}
@@ -220,9 +202,8 @@ export function MonthlyReturns({ account }: { account: Account }) {
       </div>
 
       <p className="px-5 pt-2 pb-4 text-[11.5px] text-ink-muted">
-        Percentage returns; bar length scales with size of move. Hover a month
-        for its return and max drawdown. Annual totals are compounded, not
-        summed.
+        Percentage returns. Hover a month for its return and max drawdown.
+        Annual totals are compounded, not summed.
       </p>
     </Card>
   );
@@ -235,7 +216,7 @@ function Extreme({ label, value }: { label: string; value: number }) {
       <p
         className={cn(
           "mt-0.5 text-body font-semibold tnum",
-          value >= 0 ? "text-profit" : "text-loss",
+          value >= 0 ? "text-ink" : "text-loss",
         )}
       >
         {sign(value)}

@@ -14,12 +14,12 @@ import {
 } from "recharts";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Toggle } from "@/components/ui/toggle";
+import { CROSSHAIR, usePlotHover } from "@/components/ui/chart-readout";
 import {
-  CROSSHAIR,
-  ChartReadout,
-  Read,
-  usePlotHover,
-} from "@/components/ui/chart-readout";
+  DateTicker,
+  TooltipBox,
+  TooltipContent,
+} from "@/components/ui/area-chart";
 import { equityRiskSeries, type Account } from "@/lib/data";
 import { cn } from "@/lib/utils";
 
@@ -112,6 +112,30 @@ export function EquityRiskChart({ account }: { account: Account }) {
     padLeft: MARGIN.left + Y_WIDTH,
     padRight: MARGIN.right,
   });
+
+  // Pixel geometry for the floating tooltip card + date pill.
+  const [hoverPx, setHoverPx] = useState<{
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  } | null>(null);
+  const plotHandlers = {
+    onMouseMove: (e: React.MouseEvent<HTMLDivElement>) => {
+      handlers.onMouseMove(e);
+      const r = e.currentTarget.getBoundingClientRect();
+      setHoverPx({
+        x: e.clientX - r.left,
+        y: e.clientY - r.top,
+        w: r.width,
+        h: r.height,
+      });
+    },
+    onMouseLeave: () => {
+      handlers.onMouseLeave();
+      setHoverPx(null);
+    },
+  };
 
   // ---- Zoom & pan ------------------------------------------------------
   const plotRef = useRef<HTMLDivElement>(null);
@@ -230,11 +254,9 @@ export function EquityRiskChart({ account }: { account: Account }) {
   const retDp = retSpan < 6 ? 1 : 0;
 
   const hoverAt = index === null ? null : data[index];
-  const at = hoverAt ?? data[data.length - 1];
+  const dateLabels = useMemo(() => data.map((p) => monthDay(p.date)), [data]);
   const last = points[N - 1]?.ret ?? 0;
-  const peak = Math.max(...points.map((p) => p.ret), 0);
   const trough = Math.min(...data.map((p) => p.dd), 0);
-  const maxStag = stagnations.reduce((m, s) => Math.max(m, s.days), 0);
 
   const xAxis = (visible: boolean) => (
     <XAxis
@@ -283,7 +305,7 @@ export function EquityRiskChart({ account }: { account: Account }) {
         <div
           ref={plotRef}
           className={cn(
-            "min-w-0 flex-1 touch-none select-none",
+            "relative min-w-0 flex-1 touch-none select-none",
             dragging ? "cursor-grabbing" : "cursor-crosshair",
           )}
           onPointerDown={onPointerDown}
@@ -291,18 +313,25 @@ export function EquityRiskChart({ account }: { account: Account }) {
           onPointerUp={endDrag}
           onPointerCancel={endDrag}
           onDoubleClick={reset}
-          {...handlers}
+          {...plotHandlers}
         >
           <div style={{ height: EQUITY_H }}>
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={data} margin={MARGIN} syncId="equityRisk">
                 <defs>
                   <linearGradient id="eqcFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--color-chart-1)" stopOpacity={0.14} />
+                    <stop offset="0%" stopColor="var(--color-chart-1)" stopOpacity={0.2} />
+                    <stop offset="100%" stopColor="var(--color-chart-1)" stopOpacity={0} />
+                  </linearGradient>
+                  {/* Picture-3 stroke: the line fades out at both edges. */}
+                  <linearGradient id="eqcStroke" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor="var(--color-chart-1)" stopOpacity={0} />
+                    <stop offset="12%" stopColor="var(--color-chart-1)" stopOpacity={1} />
+                    <stop offset="88%" stopColor="var(--color-chart-1)" stopOpacity={1} />
                     <stop offset="100%" stopColor="var(--color-chart-1)" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid stroke="var(--color-chart-grid)" vertical={false} />
+                <CartesianGrid stroke="var(--color-chart-grid)" strokeDasharray="4 4" vertical={false} />
                 {xAxis(!on.underwater)}
                 <YAxis
                   tickFormatter={(v: number) => `${v.toFixed(retDp)}%`}
@@ -374,7 +403,7 @@ export function EquityRiskChart({ account }: { account: Account }) {
                 <Area
                   type="monotone"
                   dataKey="ret"
-                  stroke="var(--color-chart-1)"
+                  stroke="url(#eqcStroke)"
                   strokeWidth={2}
                   fill="url(#eqcFill)"
                   dot={false}
@@ -407,8 +436,14 @@ export function EquityRiskChart({ account }: { account: Account }) {
                       <stop offset="0%" stopColor="var(--color-loss)" stopOpacity={0.04} />
                       <stop offset="100%" stopColor="var(--color-loss)" stopOpacity={0.28} />
                     </linearGradient>
+                    <linearGradient id="eqcUwStroke" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="var(--color-loss)" stopOpacity={0} />
+                      <stop offset="12%" stopColor="var(--color-loss)" stopOpacity={1} />
+                      <stop offset="88%" stopColor="var(--color-loss)" stopOpacity={1} />
+                      <stop offset="100%" stopColor="var(--color-loss)" stopOpacity={0} />
+                    </linearGradient>
                   </defs>
-                  <CartesianGrid stroke="var(--color-chart-grid)" vertical={false} />
+                  <CartesianGrid stroke="var(--color-chart-grid)" strokeDasharray="4 4" vertical={false} />
                   {xAxis(true)}
                   <YAxis
                     tickFormatter={(v: number) =>
@@ -425,7 +460,7 @@ export function EquityRiskChart({ account }: { account: Account }) {
                   <Area
                     type="monotone"
                     dataKey="dd"
-                    stroke="var(--color-loss)"
+                    stroke="url(#eqcUwStroke)"
                     strokeWidth={1.5}
                     fill="url(#eqcUw)"
                     dot={false}
@@ -435,6 +470,53 @@ export function EquityRiskChart({ account }: { account: Account }) {
                 </AreaChart>
               </ResponsiveContainer>
             </div>
+          )}
+
+          {/* Floating tooltip card + rolling date pill — picture-3 anatomy. */}
+          {hoverAt && hoverPx && (
+            <>
+              <TooltipBox
+                containerHeight={hoverPx.h}
+                containerRef={plotRef}
+                containerWidth={hoverPx.w}
+                visible
+                x={hoverPx.x}
+                y={hoverPx.y}
+              >
+                <TooltipContent
+                  title={fullDate(hoverAt.date)}
+                  rows={[
+                    {
+                      color: "var(--color-chart-1)",
+                      label: "Cumulative return",
+                      value: signed(hoverAt.ret),
+                    },
+                    {
+                      color: "var(--color-loss)",
+                      label: "Below peak",
+                      value:
+                        hoverAt.dd >= -0.005
+                          ? "At peak"
+                          : `−${Math.abs(hoverAt.dd).toFixed(2)}%`,
+                    },
+                  ]}
+                />
+              </TooltipBox>
+              <div
+                className="pointer-events-none absolute z-50"
+                style={{
+                  left: hoverPx.x,
+                  transform: "translateX(-50%)",
+                  bottom: 4,
+                }}
+              >
+                <DateTicker
+                  currentIndex={index ?? 0}
+                  labels={dateLabels}
+                  visible
+                />
+              </div>
+            </>
           )}
         </div>
 
@@ -454,28 +536,6 @@ export function EquityRiskChart({ account }: { account: Account }) {
         </div>
       </div>
 
-      <div className="px-5 pb-4">
-        <ChartReadout>
-          <Read label={at ? fullDate(at.date) : "—"} value="" plain />
-          <Read
-            label="Cumulative return"
-            value={signed(at?.ret ?? 0)}
-            colorVar="--color-chart-1"
-          />
-          <Read
-            label="Below peak"
-            value={(at?.dd ?? 0) >= -0.005 ? "At peak" : `−${Math.abs(at?.dd ?? 0).toFixed(2)}%`}
-            colorVar="--color-loss"
-          />
-          <Read label="Best so far" value={signed(peak)} plain />
-          <Read label="Deepest drawdown" value={`−${Math.abs(trough).toFixed(2)}%`} plain />
-          <Read
-            label="Max stagnation"
-            value={maxStag ? `${maxStag.toLocaleString("en-US")} days` : "—"}
-            plain
-          />
-        </ChartReadout>
-      </div>
     </Card>
   );
 }
