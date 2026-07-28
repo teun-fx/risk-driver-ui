@@ -918,13 +918,20 @@ export type EquityRiskPoint = {
   dd: number;
 };
 
+export type StagnationPeriod = {
+  from: string;
+  to: string;
+  days: number;
+  ongoing: boolean;
+};
+
 /**
  * Everything the combined equity/underwater chart needs, on one aligned daily
  * axis so the two stacked panels share an x-domain exactly.
  *
- * `stagnation` is the longest stretch the account went without setting a new
- * equity high — measured peak date to the day that peak was finally exceeded,
- * and left open-ended if it never was.
+ * `stagnations` are the five longest stretches without a new equity high —
+ * peak date to the day that peak was exceeded, the last one left open-ended
+ * (and counted) if the peak never was exceeded.
  */
 export function equityRiskSeries(account: Account) {
   const daily = dailyEquityFor(account);
@@ -932,9 +939,9 @@ export function equityRiskSeries(account: Account) {
 
   const points: EquityRiskPoint[] = [];
   const highs: string[] = [];
+  const runs: { fromIdx: number; toIdx: number; days: number; ongoing: boolean }[] = [];
   let peak = start;
   let peakIdx = 0;
-  let stag = { fromIdx: 0, toIdx: 0, days: 0, ongoing: false };
 
   const dayGap = (a: number, b: number) =>
     Math.round(
@@ -944,7 +951,8 @@ export function equityRiskSeries(account: Account) {
   daily.forEach((p, i) => {
     if (p.equity > peak) {
       const days = dayGap(peakIdx, i);
-      if (days > stag.days) stag = { fromIdx: peakIdx, toIdx: i, days, ongoing: false };
+      if (days > 0)
+        runs.push({ fromIdx: peakIdx, toIdx: i, days, ongoing: false });
       peak = p.equity;
       peakIdx = i;
       if (i > 0) highs.push(p.date.toISOString().slice(0, 10));
@@ -958,11 +966,22 @@ export function equityRiskSeries(account: Account) {
 
   // The run still in progress counts too — a record-long flat patch that has
   // not ended yet is exactly the one worth showing.
-  if (daily.length > 1) {
+  if (daily.length > 1 && peakIdx < daily.length - 1) {
     const days = dayGap(peakIdx, daily.length - 1);
-    if (days > stag.days)
-      stag = { fromIdx: peakIdx, toIdx: daily.length - 1, days, ongoing: true };
+    if (days > 0)
+      runs.push({ fromIdx: peakIdx, toIdx: daily.length - 1, days, ongoing: true });
   }
+
+  const stagnations: StagnationPeriod[] = runs
+    .sort((a, b) => b.days - a.days)
+    .slice(0, 5)
+    .sort((a, b) => a.fromIdx - b.fromIdx)
+    .map((r) => ({
+      from: points[r.fromIdx].date,
+      to: points[r.toIdx].date,
+      days: r.days,
+      ongoing: r.ongoing,
+    }));
 
   const lastDate = daily[daily.length - 1]?.date;
   const bands = drawdownEpisodes(account)
@@ -976,14 +995,7 @@ export function equityRiskSeries(account: Account) {
     points,
     bands,
     highs,
-    stagnation: points.length
-      ? {
-          from: points[stag.fromIdx].date,
-          to: points[stag.toIdx].date,
-          days: stag.days,
-          ongoing: stag.ongoing,
-        }
-      : null,
+    stagnations,
     /** Endpoint-to-endpoint reference line, the reference chart's straight red line. */
     trend: points.length
       ? { from: points[0].ret, to: points[points.length - 1].ret }
