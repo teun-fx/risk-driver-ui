@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
  * returns table (solid colour at 85%, no gradient) so the two read as one
  * family.
  */
-const SEGMENTS = 12;
+const SEGMENTS = 90;
 
 export function ProfitDistribution({ account }: { account: Account }) {
   const buckets = useMemo(() => profitDistribution(account), [account]);
@@ -36,29 +36,30 @@ export function ProfitDistribution({ account }: { account: Account }) {
       </CardHeader>
 
       <CardContent>
-        {/* Histogram of segment stacks — the accounts-page return meter
-            stood upright: pills fill from the baseline in proportion to the
-            largest band, profit green for winning bands, loss red for losing
-            ones, hollow bordered slots for the rest. */}
-        <div className="flex items-end justify-between gap-3 pt-2">
+        {/* The accounts-page return meter, row per band: upright pills
+            running left to right, lit in proportion to the largest band.
+            Wins in the meter's profit green, losses in its red, the rest
+            hollow bordered slots. */}
+        <ul className="space-y-2.5">
           {buckets.map((b, i) => {
             const lit = b.count
               ? Math.max(1, Math.round((b.count / max) * SEGMENTS))
               : 0;
             return (
-              <div
-                key={b.label}
-                className="flex min-w-0 flex-1 flex-col items-center gap-2"
-              >
-                <span className="text-[11.5px] tnum text-ink-secondary">
-                  {b.count}
+              <li key={b.label} className="flex items-center gap-3">
+                <span className="w-24 shrink-0 text-right text-[11.5px] tnum text-ink-muted">
+                  {b.label}
                 </span>
-                <div className="flex w-full max-w-9 flex-col-reverse gap-1" aria-hidden>
+
+                <span
+                  className="flex min-w-0 flex-1 [&>span]:max-w-[6px] gap-1"
+                  aria-hidden
+                >
                   {Array.from({ length: SEGMENTS }, (_, j) => (
                     <span
                       key={j}
                       className={cn(
-                        "block-pop h-2 w-full rounded-full",
+                        "block-pop h-5 min-w-0 flex-1 rounded-full",
                         j < lit
                           ? b.sign === "win"
                             ? "bg-profit"
@@ -67,19 +68,20 @@ export function ProfitDistribution({ account }: { account: Account }) {
                       )}
                       style={
                         j < lit
-                          ? { opacity: 0.85, animationDelay: `${i * 40 + j * 18}ms` }
-                          : { animationDelay: `${i * 40 + j * 18}ms` }
+                          ? { opacity: 0.85, animationDelay: `${i * 40 + j * 4}ms` }
+                          : { animationDelay: `${i * 40 + j * 4}ms` }
                       }
                     />
                   ))}
-                </div>
-                <span className="text-[11px] tnum whitespace-nowrap text-ink-muted">
-                  {b.label}
                 </span>
-              </div>
+
+                <span className="w-7 shrink-0 text-right text-[11.5px] tnum text-ink-secondary">
+                  {b.count}
+                </span>
+              </li>
             );
           })}
-        </div>
+        </ul>
 
         <p className="mt-4 text-[11.5px] text-ink-muted">
           Bands are trade P&amp;L in dollars, scaled to account size.
