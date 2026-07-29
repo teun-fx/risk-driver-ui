@@ -4,8 +4,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * The full statistics block — a quiet, dense grid in the factsheet idiom:
- * eyebrow section title, then compact label-over-value cells, two to a row
- * in the analytics row's right-hand column.
+ * eyebrow section title, then compact label-over-value cells, three to a row.
  * Directional figures (wins, losses, drawdown) carry a semantic tint;
  * everything else stays neutral ink so the colour means something.
  *
@@ -20,9 +19,9 @@ export function ReturnStatistics({ account }: { account: Account }) {
     <Card className="h-full px-5 py-4 sm:px-6 sm:py-5">
       <p className="text-eyebrow text-ink-muted">Return statistics</p>
 
-      {/* Two columns in the narrow right lane; wider only when the card
-          spans the full width on small screens. */}
-      <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3 xl:grid-cols-2">
+      {/* Three columns keeps this card's height near the donut's, so the
+          analytics row lands level instead of being dragged tall by 15 rows. */}
+      <dl className="mt-4 grid grid-cols-2 gap-x-5 gap-y-3.5 sm:grid-cols-3">
         {stats.map((s) => (
           <div key={s.label}>
             <dt className="text-[11.5px] text-ink-muted">{s.label}</dt>

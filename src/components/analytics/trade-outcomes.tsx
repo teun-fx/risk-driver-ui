@@ -54,7 +54,7 @@ export function TradeOutcomes({ account }: { account: Account }) {
   const centerLabel = active ? active.rate : "Win rate";
 
   return (
-    <Card className="flex min-w-0 flex-col">
+    <Card className="flex h-full min-w-0 flex-col">
       <CardHeader>
         <CardTitle>Trade outcomes</CardTitle>
         <span className="text-label text-ink-muted">
