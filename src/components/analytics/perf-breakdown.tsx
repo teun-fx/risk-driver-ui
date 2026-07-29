@@ -18,6 +18,13 @@ import { cn, money } from "@/lib/utils";
 const VIEWS = ["Day", "Month", "Year"] as const;
 type View = (typeof VIEWS)[number];
 
+/** What the headline names when nothing is hovered. */
+const ALL_LABEL: Record<View, string> = {
+  Day: "All days",
+  Month: "All months",
+  Year: "All years",
+};
+
 const LONG_LABEL: Record<string, string> = {
   Mon: "Monday",
   Tue: "Tuesday",
@@ -56,6 +63,7 @@ const barVariants = {
  */
 export function PerfBreakdown({ account }: { account: Account }) {
   const [view, setView] = useState<View>("Day");
+  const [hovered, setHovered] = useState<string | null>(null);
 
   const data = useMemo(() => {
     const all: Record<View, Breakdown[]> = {
@@ -73,12 +81,27 @@ export function PerfBreakdown({ account }: { account: Account }) {
   }, [account]);
 
   const rows = data.all[view];
+  // A label from the previous view would never match the new rows.
+  const [prevView, setPrevView] = useState(view);
+  if (prevView !== view) {
+    setPrevView(view);
+    setHovered(null);
+  }
+
   const totalPnl = rows.reduce((a, d) => a + d.pnl, 0);
   const totalTrades = rows.reduce((a, d) => a + d.trades, 0) || 1;
   const totalWins = rows.reduce((a, d) => a + d.wins, 0);
-  const winRate = Math.round((totalWins / totalTrades) * 100);
-  const totalPct = (totalPnl / data.base) * 100;
-  const up = totalPnl >= 0;
+  // Headline follows the pointer: the hovered period, or every period at rest.
+  const active = hovered ? rows.find((d) => d.label === hovered) : undefined;
+  const headPnl = active ? active.pnl : totalPnl;
+  const headPct = (headPnl / data.base) * 100;
+  const headTrades = active ? active.trades : totalTrades;
+  const headWins = active ? active.wins : totalWins;
+  const headRate = headTrades ? Math.round((headWins / headTrades) * 100) : 0;
+  const headLabel = active
+    ? (LONG_LABEL[active.label] ?? active.label)
+    : ALL_LABEL[view];
+  const up = headPnl >= 0;
   const maxPct = Math.max(
     ...rows.map((d) => Math.abs((d.pnl / data.base) * 100)),
     0.001,
@@ -105,13 +128,14 @@ export function PerfBreakdown({ account }: { account: Account }) {
         <div className="flex flex-col items-start gap-6 sm:flex-row sm:items-end">
           {/* Headline return — the reference's big total, on the left. */}
           <div className="flex shrink-0 flex-col">
+            <p className="text-label text-ink-muted">{headLabel}</p>
             <p
               className={cn(
-                "text-[42px] leading-none font-semibold tracking-tight tnum",
+                "mt-1 text-[42px] leading-none font-semibold tracking-tight tnum",
                 up ? "text-ink" : "text-loss",
               )}
             >
-              {signedPct(totalPct)}
+              {signedPct(headPct)}
             </p>
             <p className="mt-2 flex items-center gap-1.5 text-label text-ink-muted">
               {up ? (
@@ -119,7 +143,7 @@ export function PerfBreakdown({ account }: { account: Account }) {
               ) : (
                 <TrendingDown className="size-4 shrink-0 text-loss" aria-hidden />
               )}
-              {money(Math.round(totalPnl), { signed: true })} · {winRate}% win
+              {money(Math.round(headPnl), { signed: true })} · {headRate}% win
               rate
             </p>
           </div>
@@ -141,7 +165,6 @@ export function PerfBreakdown({ account }: { account: Account }) {
           >
             {rows.map((d) => {
               const pct = (d.pnl / data.base) * 100;
-              const pos = d.pnl >= 0;
               const rate = d.trades ? Math.round((d.wins / d.trades) * 100) : 0;
               // Floor at 6% so a flat period still reads as a bar, not a gap.
               const height = Math.max(6, (Math.abs(pct) / maxPct) * 100);
@@ -149,6 +172,11 @@ export function PerfBreakdown({ account }: { account: Account }) {
                 <div
                   key={d.label}
                   tabIndex={0}
+                  onMouseEnter={() => setHovered(d.label)}
+                  onMouseLeave={() => setHovered(null)}
+                  onFocus={() => setHovered(d.label)}
+                  onBlur={() => setHovered(null)}
+                  aria-label={`${LONG_LABEL[d.label] ?? d.label}: ${signedPct(pct, 2)}, ${rate}% win rate over ${d.trades} trades`}
                   className="group relative flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2 rounded-xs outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 >
                   <motion.span
@@ -156,39 +184,19 @@ export function PerfBreakdown({ account }: { account: Account }) {
                     style={{ height: `${height}%`, transformOrigin: "bottom" }}
                     className={cn(
                       "w-full max-w-9 rounded-md bg-ink",
-                      "transition-opacity duration-150 ease-out group-hover:opacity-80",
+                      "transition-opacity duration-150 ease-out",
+                      hovered && hovered !== d.label ? "opacity-30" : "opacity-100",
                     )}
                   />
-                  <span className="text-[11px] text-ink-muted">{d.label}</span>
-
-                  {/* Hover figures — same surface as the chart tooltips. */}
                   <span
-                    role="tooltip"
                     className={cn(
-                      "pointer-events-none invisible absolute bottom-[calc(100%-14px)] left-1/2 z-30 w-44 -translate-x-1/2",
-                      "rounded-md border border-line bg-overlay px-3 py-2.5 text-left shadow-pop",
-                      "opacity-0 transition-opacity duration-150 ease-out",
-                      "group-hover:visible group-hover:opacity-100 group-focus-visible:visible group-focus-visible:opacity-100",
+                      "text-[11px] transition-colors duration-150 ease-out",
+                      hovered === d.label ? "text-ink" : "text-ink-muted",
                     )}
                   >
-                    <span className="block text-label text-ink-muted">
-                      {LONG_LABEL[d.label] ?? d.label}
-                    </span>
-                    <span className="mt-1.5 block space-y-1">
-                      <Row
-                        k="Net P&L"
-                        v={money(d.pnl, { signed: true })}
-                        tone={pos ? "profit" : "loss"}
-                      />
-                      <Row
-                        k="Return"
-                        v={signedPct(pct, 2)}
-                        tone={pos ? "profit" : "loss"}
-                      />
-                      <Row k="Trades" v={`${d.trades}`} />
-                      <Row k="Win rate" v={`${rate}%`} />
-                    </span>
+                    {d.label}
                   </span>
+
                 </div>
               );
             })}
@@ -196,33 +204,5 @@ export function PerfBreakdown({ account }: { account: Account }) {
         </div>
       </CardContent>
     </Card>
-  );
-}
-
-function Row({
-  k,
-  v,
-  tone,
-}: {
-  k: string;
-  v: string;
-  tone?: "profit" | "loss";
-}) {
-  return (
-    <span className="flex items-baseline justify-between gap-3">
-      <span className="text-label text-ink-secondary">{k}</span>
-      <span
-        className={cn(
-          "text-label tnum font-medium",
-          tone === "profit"
-            ? "text-profit"
-            : tone === "loss"
-              ? "text-loss"
-              : "text-ink",
-        )}
-      >
-        {v}
-      </span>
-    </span>
   );
 }

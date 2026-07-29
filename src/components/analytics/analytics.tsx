@@ -83,18 +83,21 @@ export function Analytics() {
             <MonthlyReturns account={account} />
           </section>
 
+          {/* Performance · outcomes · statistics, one row on wide screens.
+              Performance carries the bar chart so it takes the widest column. */}
           <section
-            aria-label="Performance and outcomes"
-            className="grid grid-cols-1 items-stretch gap-5 xl:grid-cols-3"
+            aria-label="Performance, outcomes and statistics"
+            className="grid grid-cols-1 items-stretch gap-5 lg:grid-cols-2 xl:grid-cols-12"
           >
-            <div className="min-w-0 xl:col-span-2">
+            <div className="min-w-0 xl:col-span-5">
               <PerfBreakdown account={account} />
             </div>
-            <TradeOutcomes account={account} />
-          </section>
-
-          <section aria-label="Return statistics">
-            <ReturnStatistics account={account} />
+            <div className="min-w-0 xl:col-span-3">
+              <TradeOutcomes account={account} />
+            </div>
+            <div className="min-w-0 lg:col-span-2 xl:col-span-4">
+              <ReturnStatistics account={account} />
+            </div>
           </section>
         </>
       )}
