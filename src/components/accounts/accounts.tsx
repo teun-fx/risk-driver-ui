@@ -153,9 +153,12 @@ const rowVariants = {
 };
 
 /* One grid template shared by the header row and every account card, so the
-   columns stay aligned without a <table>. */
+   columns stay aligned without a <table>. The status column is a FIXED width
+   that already fits the chip plus the three hover actions — an `auto` track
+   would widen the moment the actions fade in and shunt every other column
+   left, so rows would visibly jump out of alignment on hover. */
 const GRID =
-  "grid grid-cols-[minmax(160px,1.5fr)_minmax(90px,1fr)_minmax(90px,1fr)_minmax(100px,1fr)_minmax(80px,0.9fr)_minmax(170px,1.3fr)_minmax(120px,auto)] items-center gap-x-4";
+  "grid grid-cols-[minmax(160px,1.5fr)_minmax(90px,1fr)_minmax(90px,1fr)_minmax(100px,1fr)_minmax(80px,0.9fr)_minmax(170px,1.3fr)_190px] items-center gap-x-4";
 
 export function Accounts() {
   const { accounts, imported, addAccount, updateAccount, removeAccount } =
@@ -418,10 +421,13 @@ export function Accounts() {
           ) : (
             <div className="overflow-x-auto px-4 pb-4">
               <div className="min-w-[880px]">
+                {/* Transparent border + identical padding to a row card, so
+                    the header's grid tracks resolve to the same widths — a
+                    1px border difference makes the fr columns diverge. */}
                 <div
                   className={cn(
                     GRID,
-                    "px-[17px] py-2.5 text-eyebrow font-medium text-ink-muted",
+                    "border border-transparent px-4 py-2.5 text-eyebrow font-medium text-ink-muted",
                   )}
                   aria-hidden
                 >
