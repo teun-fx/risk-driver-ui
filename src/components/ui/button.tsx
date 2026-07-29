@@ -24,19 +24,24 @@ const sizes: Record<Size, string> = {
   md: "h-9 gap-2 px-3.5 text-label",
 };
 
-export function GlassLayers() {
+export function GlassLayers({ rounded = "md" }: { rounded?: "md" | "full" }) {
+  const radius = rounded === "full" ? "rounded-full" : "rounded-md";
   return (
     <>
       <span
         aria-hidden
         className={cn(
-          "pointer-events-none absolute inset-0 rounded-md",
+          "pointer-events-none absolute inset-0",
+          radius,
           glassShadow,
         )}
       />
       <span
         aria-hidden
-        className="pointer-events-none absolute inset-0 -z-10 overflow-hidden rounded-md"
+        className={cn(
+          "pointer-events-none absolute inset-0 -z-10 overflow-hidden",
+          radius,
+        )}
         style={{ backdropFilter: 'url("#liquid-glass")' }}
       />
     </>
@@ -47,14 +52,21 @@ export function Button({
   className,
   variant = "secondary",
   size = "md",
+  pill = false,
   children,
   ...props
-}: React.ComponentProps<"button"> & { variant?: Variant; size?: Size }) {
+}: React.ComponentProps<"button"> & {
+  variant?: Variant;
+  size?: Size;
+  /** Capsule shape — the glass chrome follows the radius. */
+  pill?: boolean;
+}) {
   const glass = variant === "primary";
   return (
     <button
       className={cn(
-        "inline-flex shrink-0 items-center justify-center rounded-md font-medium whitespace-nowrap",
+        "inline-flex shrink-0 items-center justify-center font-medium whitespace-nowrap",
+        pill ? "rounded-full" : "rounded-md",
         "transition-[color,background-color,border-color,filter] duration-150 ease-out",
         "disabled:pointer-events-none disabled:opacity-40",
         "[&_svg]:size-4 [&_svg]:shrink-0",
@@ -65,8 +77,8 @@ export function Button({
       )}
       {...props}
     >
-      {glass && <GlassLayers />}
-      {glass ? <span className="z-10 inline-flex items-center gap-2">{children}</span> : children}
+      {glass && <GlassLayers rounded={pill ? "full" : "md"} />}
+      {glass ? <span className="z-10 inline-flex items-center gap-1.5">{children}</span> : children}
     </button>
   );
 }

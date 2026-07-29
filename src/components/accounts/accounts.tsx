@@ -394,7 +394,7 @@ export function Accounts() {
                   : "Connect an account to see its performance"}
               </p>
             </div>
-            <Button variant="primary" onClick={openAdd}>
+            <Button variant="primary" size="sm" pill onClick={openAdd}>
               <Plus aria-hidden />
               Add account
             </Button>
