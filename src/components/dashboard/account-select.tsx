@@ -41,21 +41,21 @@ export function AccountSelect({
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          "relative isolate flex h-9 w-full items-center gap-2.5 rounded-md px-3",
+          "relative isolate flex h-8 w-full items-center gap-2 rounded-full px-3",
           "transition-[filter] duration-150 ease-out hover:brightness-110",
         )}
       >
-        <GlassLayers />
-        <Wallet className="z-10 size-4 shrink-0 text-ink-muted" aria-hidden />
-        <span className="min-w-0 flex-1 truncate text-left text-label font-medium text-ink">
+        <GlassLayers rounded="full" />
+        <Wallet className="z-10 size-3.5 shrink-0 text-ink-muted" aria-hidden />
+        <span className="z-10 min-w-0 flex-1 truncate text-left text-label font-medium text-ink">
           {value.name}
         </span>
-        <span className="hidden text-label tnum text-ink-muted sm:block">
+        <span className="z-10 hidden text-label tnum text-ink-muted sm:block">
           {money(value.equity)}
         </span>
         <ChevronDown
           className={cn(
-            "size-3.5 shrink-0 text-ink-muted transition-transform duration-150 ease-out",
+            "z-10 size-3.5 shrink-0 text-ink-muted transition-transform duration-150 ease-out",
             open && "rotate-180",
           )}
           aria-hidden
@@ -66,7 +66,7 @@ export function AccountSelect({
         <div
           role="listbox"
           aria-label="Trading account"
-          className="absolute top-full right-0 left-0 z-50 mt-1.5 overflow-hidden rounded-md border border-line bg-overlay py-1 shadow-pop"
+          className="absolute top-full right-0 left-0 z-50 mt-2 overflow-hidden rounded-lg border border-line bg-overlay py-1 shadow-pop"
         >
           {accounts.map((a) => {
             const selected = a.id === value.id;
