@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
  * returns table (solid colour at 85%, no gradient) so the two read as one
  * family.
  */
-const SEGMENTS = 26;
+const SEGMENTS = 12;
 
 export function ProfitDistribution({ account }: { account: Account }) {
   const buckets = useMemo(() => profitDistribution(account), [account]);
@@ -36,44 +36,50 @@ export function ProfitDistribution({ account }: { account: Account }) {
       </CardHeader>
 
       <CardContent>
-        {/* Reference compliance-checks meter: a fixed run of segments per
-            band, lit in proportion to the band's share of the biggest one.
-            Wins light plain ink, losses the dashboard red. */}
-        <ul className="space-y-2">
+        {/* Histogram of segment stacks — the accounts-page return meter
+            stood upright: pills fill from the baseline in proportion to the
+            largest band, profit green for winning bands, loss red for losing
+            ones, hollow bordered slots for the rest. */}
+        <div className="flex items-end justify-between gap-3 pt-2">
           {buckets.map((b, i) => {
             const lit = b.count
               ? Math.max(1, Math.round((b.count / max) * SEGMENTS))
               : 0;
             return (
-              <li key={b.label} className="flex items-center gap-3">
-                <span className="w-24 shrink-0 text-right text-[11.5px] tnum text-ink-muted">
-                  {b.label}
+              <div
+                key={b.label}
+                className="flex min-w-0 flex-1 flex-col items-center gap-2"
+              >
+                <span className="text-[11.5px] tnum text-ink-secondary">
+                  {b.count}
                 </span>
-
-                <span className="flex min-w-0 flex-1 gap-1" aria-hidden>
+                <div className="flex w-full max-w-9 flex-col-reverse gap-1" aria-hidden>
                   {Array.from({ length: SEGMENTS }, (_, j) => (
                     <span
                       key={j}
                       className={cn(
-                        "block-pop h-4 min-w-0 flex-1 rounded-sm border",
+                        "block-pop h-2 w-full rounded-full",
                         j < lit
                           ? b.sign === "win"
-                            ? "border-ink bg-ink"
-                            : "border-loss bg-loss"
-                          : "border-line bg-raised",
+                            ? "bg-profit"
+                            : "bg-loss"
+                          : "border border-line bg-raised",
                       )}
-                      style={{ animationDelay: `${i * 45 + j * 12}ms` }}
+                      style={
+                        j < lit
+                          ? { opacity: 0.85, animationDelay: `${i * 40 + j * 18}ms` }
+                          : { animationDelay: `${i * 40 + j * 18}ms` }
+                      }
                     />
                   ))}
+                </div>
+                <span className="text-[11px] tnum whitespace-nowrap text-ink-muted">
+                  {b.label}
                 </span>
-
-                <span className="w-7 shrink-0 text-right text-[11.5px] tnum text-ink-secondary">
-                  {b.count}
-                </span>
-              </li>
+              </div>
             );
           })}
-        </ul>
+        </div>
 
         <p className="mt-4 text-[11.5px] text-ink-muted">
           Bands are trade P&amp;L in dollars, scaled to account size.
