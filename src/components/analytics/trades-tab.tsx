@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TD, TH, THead, TR } from "@/components/ui/table";
@@ -51,25 +51,14 @@ function Stat({
   );
 }
 
-function Key({ tone, label }: { tone: "profit" | "loss"; label: string }) {
-  return (
-    <span className="flex items-center gap-2">
-      <span
-        className="h-2.5 w-2 rounded-xs"
-        style={{ background: `var(--color-${tone})`, opacity: 0.85 }}
-        aria-hidden
-      />
-      <span className="text-label text-ink-secondary">{label}</span>
-    </span>
-  );
+/** Open time derived from the close and the held duration. */
+function openDate(t: { date: Date; durationHours: number }): Date {
+  return new Date(t.date.getTime() - t.durationHours * 3_600_000);
 }
 
 /**
- * The full ledger. The win/loss sequence lives in the table itself: each row
- * carries a vertical bar in the trailing column, green or red by sign and
- * scaled by size of the move, so clustering — losses bunching together, which
- * is what tilt and regime change look like — reads straight down the column.
- * Hovering a row crossfades its bar to full strength and drops the rest back.
+ * The full ledger — compact factsheet rows: opened, closed, instrument,
+ * side, held, P&L. Streak stats live in the header.
  */
 function ClosedTradesTable({ account }: { account: Account }) {
   const trades = useMemo(
@@ -80,10 +69,8 @@ function ClosedTradesTable({ account }: { account: Account }) {
     [account],
   );
   const seq = useMemo(() => winLossSequence(account), [account]);
-  const [hover, setHover] = useState<number | null>(null);
   const shown = trades.slice(0, SHOWN);
   const net = trades.reduce((a, t) => a + t.pnl, 0);
-  const maxAbs = Math.max(...shown.map((t) => Math.abs(t.pnl)), 1);
 
   return (
     <Card className="min-w-0 overflow-hidden">
@@ -110,52 +97,42 @@ function ClosedTradesTable({ account }: { account: Account }) {
         </div>
       </CardHeader>
 
-      <div className="flex items-center gap-4 border-b border-line px-5 py-3">
-        <Key tone="profit" label="Win" />
-        <Key tone="loss" label="Loss" />
-        <span className="text-label text-ink-muted">
-          Bar length scales with size of the move
-        </span>
-        {trades.length > SHOWN && (
-          <span className="ml-auto text-label text-ink-muted">
-            Showing latest {SHOWN}
-          </span>
-        )}
-      </div>
-
       <Table>
         <caption className="sr-only">
-          Closed trades with date, instrument, side, holding time, realized
-          profit or loss, and a win/loss bar scaled to the size of the move
+          Closed trades with open and close date, instrument, side, holding
+          time and realized profit or loss
         </caption>
         <THead>
           <tr>
+            <TH>Opened</TH>
             <TH>Closed</TH>
             <TH>Instrument</TH>
             <TH>Side</TH>
             <TH numeric>Held</TH>
             <TH numeric>P&amp;L</TH>
-            <TH className="w-10 text-center">Seq</TH>
           </tr>
         </THead>
-        <tbody onMouseLeave={() => setHover(null)}>
+        <tbody>
           {shown.map((t) => {
             const win = t.pnl >= 0;
-            const h = Math.max(20, (Math.abs(t.pnl) / maxAbs) * 100);
-            const dimmed = hover !== null && hover !== t.id;
             return (
-              <TR key={t.id} onMouseEnter={() => setHover(t.id)}>
-                <TD className="text-ink">{fullDate(t.date)}</TD>
-                <TD>
+              <TR key={t.id}>
+                <TD className="py-2 text-ink-secondary">
+                  {fullDate(openDate(t))}
+                </TD>
+                <TD className="py-2 text-ink">{fullDate(t.date)}</TD>
+                <TD className="py-2">
                   <span className="font-medium tnum text-ink">{t.pair}</span>
                 </TD>
-                <TD>
+                <TD className="py-2">
                   <Badge tone={t.side === "Long" ? "accent" : "neutral"}>
                     {t.side}
                   </Badge>
                 </TD>
-                <TD numeric>{duration(t.durationHours)}</TD>
-                <TD numeric>
+                <TD numeric className="py-2">
+                  {duration(t.durationHours)}
+                </TD>
+                <TD numeric className="py-2">
                   <span
                     className={cn(
                       "font-medium",
@@ -165,30 +142,16 @@ function ClosedTradesTable({ account }: { account: Account }) {
                     {money(t.pnl, { signed: true })}
                   </span>
                 </TD>
-
-                {/* Sequence bar — vertical, flat monthly-returns ink. */}
-                <TD className="px-2">
-                  <span
-                    className="flex h-6 items-center justify-center"
-                    title={`${win ? "Win" : "Loss"} · ${money(t.pnl, { signed: true })}`}
-                  >
-                    <span
-                      className={cn(
-                        "block w-2 rounded-xs transition-opacity duration-150 ease-out",
-                        win ? "bg-profit" : "bg-loss",
-                      )}
-                      style={{
-                        height: `${h}%`,
-                        opacity: dimmed ? 0.25 : hover === t.id ? 1 : 0.85,
-                      }}
-                    />
-                  </span>
-                </TD>
               </TR>
             );
           })}
         </tbody>
       </Table>
+      {trades.length > SHOWN && (
+        <p className="border-t border-line px-5 py-2.5 text-label text-ink-muted">
+          Showing latest {SHOWN} of {trades.length.toLocaleString("en-US")}
+        </p>
+      )}
     </Card>
   );
 }
