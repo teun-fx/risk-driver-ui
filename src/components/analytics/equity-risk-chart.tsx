@@ -352,10 +352,10 @@ export function EquityRiskChart({ account }: { account: Account }) {
                         key={`stag-${i}`}
                         x1={v.from}
                         x2={v.to}
-                        fill="var(--color-loss)"
-                        fillOpacity={0.09}
-                        stroke="var(--color-loss)"
-                        strokeOpacity={0.18}
+                        fill="var(--color-ink)"
+                        fillOpacity={0.04}
+                        stroke="var(--color-ink)"
+                        strokeOpacity={0.1}
                         label={{
                           value: `${s.days.toLocaleString("en-US")} days${s.ongoing ? " · ongoing" : ""}`,
                           position: "insideTop",
@@ -376,10 +376,17 @@ export function EquityRiskChart({ account }: { account: Account }) {
                         key={`dd-${i}`}
                         x1={v.from}
                         x2={v.to}
-                        fill="var(--color-loss)"
-                        fillOpacity={0.09}
-                        stroke="var(--color-loss)"
-                        strokeOpacity={0.18}
+                        fill="var(--color-warn)"
+                        fillOpacity={0.06}
+                        stroke="var(--color-warn)"
+                        strokeOpacity={0.16}
+                        label={{
+                          value: `${bd.days.toLocaleString("en-US")} days`,
+                          position: "insideBottom",
+                          fill: "var(--color-ink-muted)",
+                          fontSize: 10.5,
+                          offset: 8,
+                        }}
                       />
                     );
                   })}
@@ -392,9 +399,10 @@ export function EquityRiskChart({ account }: { account: Account }) {
                       { x: trendSeg.x1, y: trendSeg.y1 },
                       { x: trendSeg.x2, y: trendSeg.y2 },
                     ]}
-                    stroke="var(--color-loss)"
+                    stroke="var(--color-chart-2)"
+                    strokeDasharray="6 4"
                     strokeWidth={1.5}
-                    strokeOpacity={0.75}
+                    strokeOpacity={0.8}
                   />
                 )}
 
@@ -417,7 +425,7 @@ export function EquityRiskChart({ account }: { account: Account }) {
                     dataKey="high"
                     stroke="none"
                     connectNulls={false}
-                    dot={{ r: 2, fill: "var(--color-profit)", stroke: "none" }}
+                    dot={{ r: 2, fill: "var(--color-chart-2)", stroke: "none" }}
                     activeDot={false}
                     isAnimationActive={false}
                   />

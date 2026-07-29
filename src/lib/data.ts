@@ -989,6 +989,7 @@ export function equityRiskSeries(account: Account) {
     .map((e) => ({
       from: e.start.toISOString().slice(0, 10),
       to: (e.recovered ?? lastDate).toISOString().slice(0, 10),
+      days: e.days,
     }));
 
   return {
