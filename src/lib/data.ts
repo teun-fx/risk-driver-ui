@@ -584,21 +584,27 @@ export function maxDrawdown(range: Range, account: Account) {
 
 /* ---- Profit distribution ---- */
 
-export type Bucket = { label: string; count: number; sign: "win" | "loss" };
+export type Bucket = {
+  label: string;
+  count: number;
+  sign: "win" | "loss";
+  /** Net P&L of the band's trades — the hover detail, not a new metric. */
+  pnl: number;
+};
 
 /** Trade P&L grouped into fixed bands, scaled to the account size. */
 export function profitDistribution(account: Account): Bucket[] {
   const scale = account.equity / 250_000;
   const edges = [500, 1500, 3000].map((e) => e * scale);
   const bands: Bucket[] = [
-    { label: "< −3k", count: 0, sign: "loss" },
-    { label: "−3k…−1.5k", count: 0, sign: "loss" },
-    { label: "−1.5k…−500", count: 0, sign: "loss" },
-    { label: "−500…0", count: 0, sign: "loss" },
-    { label: "0…500", count: 0, sign: "win" },
-    { label: "500…1.5k", count: 0, sign: "win" },
-    { label: "1.5k…3k", count: 0, sign: "win" },
-    { label: "> 3k", count: 0, sign: "win" },
+    { label: "< −3k", count: 0, sign: "loss", pnl: 0 },
+    { label: "−3k…−1.5k", count: 0, sign: "loss", pnl: 0 },
+    { label: "−1.5k…−500", count: 0, sign: "loss", pnl: 0 },
+    { label: "−500…0", count: 0, sign: "loss", pnl: 0 },
+    { label: "0…500", count: 0, sign: "win", pnl: 0 },
+    { label: "500…1.5k", count: 0, sign: "win", pnl: 0 },
+    { label: "1.5k…3k", count: 0, sign: "win", pnl: 0 },
+    { label: "> 3k", count: 0, sign: "win", pnl: 0 },
   ];
 
   for (const t of tradeHistoryFor(account)) {
@@ -613,6 +619,7 @@ export function profitDistribution(account: Account): Bucket[] {
     else if (v < edges[2]) i = 6;
     else i = 7;
     bands[i].count++;
+    bands[i].pnl += v;
   }
   return bands;
 }
