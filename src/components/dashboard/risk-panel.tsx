@@ -86,7 +86,7 @@ export function StatsGrid({ account }: { account: Account }) {
         <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
           {statsFor(account).map((s) => (
             <div key={s.label}>
-              <dt className="text-eyebrow text-ink-muted">{s.label}</dt>
+              <dt className="text-label text-ink-muted">{s.label}</dt>
               <dd className="mt-1.5 text-[17px] leading-6 font-semibold tnum text-ink">
                 {s.value}
               </dd>

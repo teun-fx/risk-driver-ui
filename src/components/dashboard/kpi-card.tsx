@@ -11,11 +11,15 @@ export function KpiCard({
 }: {
   label: string;
   value: number;
-  delta: number;
+  /** Omitted (or 0) when the metric has no meaningful period-over-period
+      change — a coloured arrow on a number that has no direction is a false
+      signal, so the card shows the caption alone instead. */
+  delta?: number;
   caption: string;
   format: "money" | "pct";
 }) {
-  const up = delta >= 0;
+  const hasDelta = delta != null && delta !== 0;
+  const up = (delta ?? 0) >= 0;
   const Arrow = up ? ArrowUpRight : ArrowDownRight;
 
   return (
@@ -28,15 +32,17 @@ export function KpiCard({
 
       <div className="mt-3 flex items-center gap-2">
         {/* Arrow + sign, so direction never depends on color alone. */}
-        <span
-          className={cn(
-            "inline-flex items-center gap-0.5 text-label font-medium tnum",
-            up ? "text-profit" : "text-loss",
-          )}
-        >
-          <Arrow className="size-3.5" aria-hidden />
-          {pct(delta, { signed: true })}
-        </span>
+        {hasDelta && (
+          <span
+            className={cn(
+              "inline-flex items-center gap-0.5 text-label font-medium tnum",
+              up ? "text-profit" : "text-loss",
+            )}
+          >
+            <Arrow className="size-3.5" aria-hidden />
+            {pct(delta as number, { signed: true })}
+          </span>
+        )}
         <span className="text-label text-ink-muted">{caption}</span>
       </div>
     </Card>

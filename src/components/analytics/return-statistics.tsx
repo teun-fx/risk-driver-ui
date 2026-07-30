@@ -24,7 +24,7 @@ export function ReturnStatistics({ account }: { account: Account }) {
       <dl className="mt-4 grid grid-cols-2 gap-x-5 gap-y-3.5 sm:grid-cols-3">
         {stats.map((s) => (
           <div key={s.label}>
-            <dt className="text-[11.5px] text-ink-muted">{s.label}</dt>
+            <dt className="text-label text-ink-muted">{s.label}</dt>
             <dd
               tabIndex={0}
               className="group relative mt-0.5 inline-block cursor-help rounded-xs outline-none focus-visible:ring-2 focus-visible:ring-accent"

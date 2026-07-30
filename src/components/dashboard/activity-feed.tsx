@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { ArrowUpRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TooltipBox, TooltipContent } from "@/components/ui/area-chart";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ export function TradesFeed({ account }: { account: Account }) {
         <CardTitle>Closed trades</CardTitle>
         <Button variant="ghost" size="sm">
           View all
+          <ArrowUpRight aria-hidden />
         </Button>
       </CardHeader>
 

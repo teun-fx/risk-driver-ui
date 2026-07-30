@@ -8,7 +8,7 @@ import { cn, money, pct, price } from "@/lib/utils";
 
 const riskTone = {
   Low: "profit",
-  Elevated: "warn",
+  Elevated: "info",
   High: "loss",
 } as const;
 

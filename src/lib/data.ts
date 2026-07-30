@@ -167,8 +167,8 @@ function importedKpis(account: Account) {
   return [
     { label: "Account equity", value: equity, delta: totalReturn, caption: "since inception", format: "money" as const },
     { label: "Realized P&L", value: Math.round(monthPnl), delta: start ? (monthPnl / start) * 100 : 0, caption: "final month", format: "money" as const },
-    { label: "Win rate", value: winRate, delta: 0, caption: `${trades.length} trades closed`, format: "pct" as const },
-    { label: "Max drawdown", value: importedMaxDrawdown(account), delta: 0, caption: "peak to trough", format: "pct" as const },
+    { label: "Win rate", value: winRate, caption: `${trades.length} trades closed`, format: "pct" as const },
+    { label: "Max drawdown", value: importedMaxDrawdown(account), caption: "peak to trough", format: "pct" as const },
   ];
 }
 
@@ -338,7 +338,9 @@ export function kpisFor(account: Account) {
     { label: "Account equity", value: account.equity, delta: 3.2 + rand() * 3, caption: "vs. last month", format: "money" as const },
     { label: "Realized P&L", value: realized, delta: 8 + rand() * 8, caption: "month to date", format: "money" as const },
     { label: "Win rate", value: winRate, delta: 1 + rand() * 2.5, caption: `${120 + Math.round(rand() * 90)} trades closed`, format: "pct" as const },
-    { label: "Max drawdown", value: -(5 + rand() * 6), delta: 1 + rand() * 2, caption: "peak to trough", format: "pct" as const },
+    // No delta: "drawdown moved 2pp" has no agreed direction — a green arrow
+    // there reads as "deeper drawdown is good". The figure speaks for itself.
+    { label: "Max drawdown", value: -(5 + rand() * 6), caption: "peak to trough", format: "pct" as const },
   ];
 }
 
