@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 /**
  * Analytics-table style (the reference's Wide Inline Analytics Table):
  * balanced spacing, hairline row dividers, and plain figures — positive
- * months in white ink, negative in red, no magnitude bars.
+ * months in blue, negative in red, no magnitude bars.
  *
  * Hovering a month raises a tooltip with that month's return and its
  * intra-month max drawdown. Pure CSS (group-hover), so the component stays a
@@ -48,11 +48,11 @@ function Cell({
       tabIndex={0}
       className="group relative flex h-12 items-center justify-center rounded-xs outline-none focus-visible:ring-2 focus-visible:ring-accent"
     >
-      {/* Reference style: positive months in plain ink, negative in red. */}
+      {/* Positive months in blue, negative in red — this table's own convention. */}
       <span
         className={cn(
           "text-[12.5px] font-medium tnum",
-          up ? "text-ink" : "text-loss",
+          up ? "text-gain" : "text-loss",
         )}
       >
         {sign(cell.ret)}
@@ -79,7 +79,7 @@ function Cell({
             <span
               className={cn(
                 "text-label tnum font-medium",
-                up ? "text-ink" : "text-loss",
+                up ? "text-gain" : "text-loss",
               )}
             >
               {sign(cell.ret)}
@@ -188,7 +188,7 @@ export function MonthlyReturns({ account }: { account: Account }) {
                   <span
                     className={cn(
                       "text-[12.5px] font-semibold tnum",
-                      row.total >= 0 ? "text-ink" : "text-loss",
+                      row.total >= 0 ? "text-gain" : "text-loss",
                     )}
                   >
                     {sign(row.total)}
@@ -216,7 +216,7 @@ function Extreme({ label, value }: { label: string; value: number }) {
       <p
         className={cn(
           "mt-0.5 text-body font-semibold tnum",
-          value >= 0 ? "text-ink" : "text-loss",
+          value >= 0 ? "text-gain" : "text-loss",
         )}
       >
         {sign(value)}

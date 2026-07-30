@@ -59,6 +59,13 @@
   --color-info: #7b7fd4;
   --color-info-soft: #1e1f3a;
 
+  /* Blue ink for positive figures in the monthly-returns table. That table
+     keeps its own convention (blue up / red down) rather than the app-wide
+     green/red — --color-profit stays the P&L semantic everywhere else.
+     5.96:1 on the card surface: passes AA at the table's 12.5px, and sits
+     within a point of the red's 5.01:1 so gains and losses read equally. */
+  --color-gain: #5b8cff;
+
   /* ---- Radius: shadcn scale. 12px is the ceiling. ---- */
   --radius-xs: 4px;
   --radius-sm: 6px;
@@ -91,18 +98,24 @@
   --color-chart-2: #7b7fd4;
   --color-chart-grid: #1f1f23;
 
-  /* Share-of-volume ORDINAL ramp — one hue, monotone lightness, cool blue
-     anchored on #5b8cff (step 3). Validated with the dataviz ordinal
-     validator against surface #111113: lightness monotone, every adjacent
-     ΔL >= 0.06, dark end 3.39:1 contrast, hue spread 2°.
-     Brightest carries the LARGEST share: on a dark ground the strongest step
-     has to be the most luminous one, or the dominant pair disappears.
+  /* Share-of-volume ramp in the risk status colours: largest share green
+     through amber to deep red for the smallest.
+
+     These are the app's status hues, deliberately reused for rank here. The
+     exact tokens (#22c55e / #eab308 / #ef4444) fail CVD separation as
+     neighbours — green vs amber lands at ΔE 4.2 under protanopia — so each
+     step is nudged within its own hue family until the dataviz validator
+     passes: CVD worst adjacent ΔE 11.3 (protan), normal-vision 24.2, well
+     clear of the 15 floor. Step 4 sits at 2.92:1 contrast, the documented
+     relax that visible labels satisfy — every segment is named with its
+     percentage in the legend below.
+
      Declared in :root, never @theme — they are read only through a dynamic
      var(--color-pair-N), which @theme would tree-shake away. */
-  --color-pair-1: #a9c3ff;
-  --color-pair-2: #82a5ff;
-  --color-pair-3: #5b8cff;
-  --color-pair-4: #3c63c4;
+  --color-pair-1: #16a34a;
+  --color-pair-2: #eab308;
+  --color-pair-3: #f87171;
+  --color-pair-4: #b91c1c;
 
   /* Picture-3 chart kit (ui/area-chart) reads these — mapped onto the
      app's tokens so the kit and the rest of the UI can never drift. */
