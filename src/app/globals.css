@@ -81,11 +81,24 @@
    validator before changing any series value here.
    ============================================================ */
 :root {
+  /* Two-ENTITY categorical pair. These are identities (strategy vs benchmark,
+     median vs trend), so they must stay separable hues. */
   --color-chart-1: #2f9e8b;
   --color-chart-2: #7b7fd4;
-  --color-chart-3: #ab7a33;
-  --color-chart-4: #b5679a;
   --color-chart-grid: #1f1f23;
+
+  /* Share-of-volume ORDINAL ramp — one hue, monotone lightness, anchored on the
+     app's teal (--color-chart-1 is step 3). Validated with the dataviz
+     ordinal validator against surface #111113: lightness monotone, every
+     adjacent ΔL >= 0.06, dark end 3.27:1 contrast, hue spread 1°.
+     Brightest carries the LARGEST share: on a dark ground the strongest step
+     has to be the most luminous one, or the dominant pair disappears.
+     Declared in :root, never @theme — they are read only through a dynamic
+     var(--color-pair-N), which @theme would tree-shake away. */
+  --color-pair-1: #8ae3d1;
+  --color-pair-2: #54c4ae;
+  --color-pair-3: #2f9e8b;
+  --color-pair-4: #1c7263;
 
   /* Picture-3 chart kit (ui/area-chart) reads these — mapped onto the
      app's tokens so the kit and the rest of the UI can never drift. */

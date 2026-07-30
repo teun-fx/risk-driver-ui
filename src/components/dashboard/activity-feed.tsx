@@ -73,7 +73,7 @@ export function TradedPairs({ account }: { account: Account }) {
               className="h-full first:rounded-l-full last:rounded-r-full"
               style={{
                 width: `${p.value}%`,
-                background: `var(--color-chart-${i + 1})`,
+                background: `var(--color-pair-${i + 1})`,
               }}
               aria-hidden
             />
@@ -88,7 +88,7 @@ export function TradedPairs({ account }: { account: Account }) {
             >
               <span
                 className="size-1.5 shrink-0 rounded-full"
-                style={{ background: `var(--color-chart-${i + 1})` }}
+                style={{ background: `var(--color-pair-${i + 1})` }}
                 aria-hidden
               />
               <div className="min-w-0">

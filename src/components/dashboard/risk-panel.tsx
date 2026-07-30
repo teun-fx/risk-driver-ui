@@ -35,6 +35,8 @@ export function RiskPanel({ account }: { account: Account }) {
 
   const { used, metrics } = riskFor(account);
   const level = used > 70 ? "High" : used > 45 ? "Elevated" : "Normal";
+  // The chip is the only place colour means anything here — the meters below
+  // are plain ink so the card reads as one object, not a traffic light.
   const tone = used > 70 ? "loss" : used > 45 ? "warn" : "profit";
 
   return (
@@ -53,7 +55,7 @@ export function RiskPanel({ account }: { account: Account }) {
             <span className="text-label tnum font-medium text-ink">{used}%</span>
           </div>
           <div className="mt-2.5">
-            <SegmentMeter value={used} tone={tone} label="Daily risk budget" />
+            <SegmentMeter value={used} tone="ink" label="Daily risk budget" />
           </div>
         </div>
 
@@ -64,7 +66,7 @@ export function RiskPanel({ account }: { account: Account }) {
                 <span className="text-label text-ink-secondary">{m.label}</span>
                 <span className="text-label tnum font-medium text-ink">{m.value}%</span>
               </div>
-              <Progress value={m.value} tone={m.tone} className="mt-2" label={m.label} />
+              <Progress value={m.value} tone="ink" className="mt-2" label={m.label} />
               <p className="mt-1.5 text-[11.5px] text-ink-muted">{m.detail}</p>
             </div>
           ))}

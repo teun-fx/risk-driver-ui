@@ -1,12 +1,14 @@
 import { cn } from "@/lib/utils";
 
-type Tone = "accent" | "profit" | "loss" | "warn";
+type Tone = "accent" | "profit" | "loss" | "warn" | "ink";
 
 const fills: Record<Tone, string> = {
   accent: "bg-accent",
   profit: "bg-profit",
   loss: "bg-loss",
   warn: "bg-warn",
+  /* Neutral meter — the figure and its status chip carry the meaning. */
+  ink: "bg-ink",
 };
 
 /** Thin horizontal meter. Value is 0–100. */
