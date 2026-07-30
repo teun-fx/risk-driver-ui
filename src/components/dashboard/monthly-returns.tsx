@@ -228,11 +228,11 @@ export function MonthlyReturns({ account }: { account: Account }) {
               meta={stats.worstYear?.label}
             />
             <Stat
-              label="Longest winning run"
+              label="Longest win run"
               plain={`${stats.longestWinRun} ${stats.longestWinRun === 1 ? "month" : "months"}`}
             />
             <Stat
-              label="Longest losing run"
+              label="Longest loss run"
               plain={`${stats.longestLossRun} ${stats.longestLossRun === 1 ? "month" : "months"}`}
             />
             <Stat label="Average month" value={stats.avgMonth} />
@@ -265,17 +265,17 @@ function Stat({
   plain?: string;
 }) {
   return (
-    // h-[82px] = two table rows, so the panel keeps the grid's rhythm (every
-    // second row rule still coincides) while the figures step up in size.
-    <div className="flex h-[82px] min-w-0 flex-col justify-center border-t border-grid">
-      <dt className="text-label text-ink-muted">{label}</dt>
-      <dd className="mt-1 flex items-baseline gap-2">
+    // h-[41px] = exactly one table row, so Best month sits on the 2026 line,
+    // Best year on 2025, and so on straight down the grid.
+    <div className="flex h-[41px] min-w-0 flex-col justify-center border-t border-grid">
+      <dt className="text-[10.5px] leading-3 text-ink-muted">{label}</dt>
+      <dd className="mt-0.5 flex items-baseline gap-1.5">
         {plain !== undefined ? (
-          <span className="text-[17px] leading-6 font-semibold tnum text-ink">{plain}</span>
+          <span className="text-[14px] leading-5 font-semibold tnum text-ink">{plain}</span>
         ) : (
           <span
             className={cn(
-              "text-[17px] leading-6 font-semibold tnum",
+              "text-[14px] leading-5 font-semibold tnum",
               (value ?? 0) >= 0 ? "text-profit" : "text-loss",
             )}
           >
@@ -284,7 +284,7 @@ function Stat({
           </span>
         )}
         {meta && (
-          <span className="truncate text-label tnum text-ink-muted">
+          <span className="truncate text-[11px] tnum text-ink-muted">
             {meta}
           </span>
         )}
