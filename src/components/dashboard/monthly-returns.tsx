@@ -265,17 +265,17 @@ function Stat({
   plain?: string;
 }) {
   return (
-    // h-[41px] = one table row (36px cell + 4px padding + 1px rule), so the
-    // panel's rows stay level with the grid's all the way down.
-    <div className="flex h-[41px] min-w-0 flex-col justify-center border-t border-grid">
-      <dt className="text-[10.5px] leading-3 text-ink-muted">{label}</dt>
-      <dd className="mt-0.5 flex items-baseline gap-1.5">
+    // h-[82px] = two table rows, so the panel keeps the grid's rhythm (every
+    // second row rule still coincides) while the figures step up in size.
+    <div className="flex h-[82px] min-w-0 flex-col justify-center border-t border-grid">
+      <dt className="text-label text-ink-muted">{label}</dt>
+      <dd className="mt-1 flex items-baseline gap-2">
         {plain !== undefined ? (
-          <span className="text-[12.5px] leading-4 font-semibold tnum text-ink">{plain}</span>
+          <span className="text-[17px] leading-6 font-semibold tnum text-ink">{plain}</span>
         ) : (
           <span
             className={cn(
-              "text-[12.5px] leading-4 font-semibold tnum",
+              "text-[17px] leading-6 font-semibold tnum",
               (value ?? 0) >= 0 ? "text-profit" : "text-loss",
             )}
           >
@@ -284,7 +284,7 @@ function Stat({
           </span>
         )}
         {meta && (
-          <span className="truncate text-[11px] tnum text-ink-muted">
+          <span className="truncate text-label tnum text-ink-muted">
             {meta}
           </span>
         )}
