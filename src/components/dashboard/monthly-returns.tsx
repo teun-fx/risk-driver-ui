@@ -158,7 +158,7 @@ export function MonthlyReturns({ account }: { account: Account }) {
               ))}
               <th
                 scope="col"
-                className="border-l border-line-strong py-2 pr-4 pl-4 text-right text-[11px] font-normal text-ink-muted"
+                className="border-l border-grid py-2 pr-4 pl-4 text-right text-[11px] font-normal text-ink-muted"
               >
                 Total
               </th>
@@ -185,7 +185,7 @@ export function MonthlyReturns({ account }: { account: Account }) {
                   </td>
                 ))}
 
-                <td className="border-t border-l border-line-strong py-0 pr-4 pl-4 text-right">
+                <td className="border-t border-l border-grid py-0 pr-4 pl-4 text-right">
                   <span
                     className={cn(
                       "text-[12.5px] font-semibold tnum",
@@ -203,8 +203,10 @@ export function MonthlyReturns({ account }: { account: Account }) {
       </div>
 
         <div className="shrink-0 px-5 xl:w-72 xl:border-l xl:border-line xl:px-5">
-          <p className="mb-2.5 text-eyebrow text-ink-muted">Highlights</p>
-          <dl className="grid grid-cols-2 gap-x-5 gap-y-3">
+          {/* Same box as a column header, so the panel titles align with
+              Jan–Dec and each stat row lands level with a table row. */}
+          <p className="py-2 text-[11px] text-ink-muted">Highlights</p>
+          <dl className="grid grid-cols-2 gap-x-5">
             <Stat
               label="Best month"
               value={stats.bestMonth?.value}
@@ -263,15 +265,17 @@ function Stat({
   plain?: string;
 }) {
   return (
-    <div className="min-w-0">
-      <dt className="text-[11px] text-ink-muted">{label}</dt>
+    // h-[41px] = one table row (36px cell + 4px padding + 1px rule), so the
+    // panel's rows stay level with the grid's all the way down.
+    <div className="flex h-[41px] min-w-0 flex-col justify-center border-t border-grid">
+      <dt className="text-[10.5px] leading-3 text-ink-muted">{label}</dt>
       <dd className="mt-0.5 flex items-baseline gap-1.5">
         {plain !== undefined ? (
-          <span className="text-body font-semibold tnum text-ink">{plain}</span>
+          <span className="text-[12.5px] leading-4 font-semibold tnum text-ink">{plain}</span>
         ) : (
           <span
             className={cn(
-              "text-body font-semibold tnum",
+              "text-[12.5px] leading-4 font-semibold tnum",
               (value ?? 0) >= 0 ? "text-profit" : "text-loss",
             )}
           >
