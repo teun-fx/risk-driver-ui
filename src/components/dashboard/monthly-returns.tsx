@@ -250,8 +250,8 @@ export function MonthlyReturns({ account }: { account: Account }) {
 }
 
 /**
- * One highlight: label above, figure below. Signed figures keep the app's
- * P&L inks; counts stay neutral because a streak length has no direction.
+ * One highlight: label above, figure below — all figures in plain ink, the
+ * +/− sign carrying direction.
  */
 function Stat({
   label,
@@ -273,12 +273,9 @@ function Stat({
         {plain !== undefined ? (
           <span className="text-[14px] leading-5 font-semibold tnum text-ink">{plain}</span>
         ) : (
-          <span
-            className={cn(
-              "text-[14px] leading-5 font-semibold tnum",
-              (value ?? 0) >= 0 ? "text-profit" : "text-loss",
-            )}
-          >
+          /* Plain ink — the grid already carries the green/red; the panel
+             stays quiet and lets the signs speak. */
+          <span className="text-[14px] leading-5 font-semibold tnum text-ink">
             {sign(value ?? 0)}
             {Math.abs(value ?? 0).toFixed(1)}%
           </span>
