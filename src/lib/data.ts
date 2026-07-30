@@ -1274,6 +1274,86 @@ export type YearReturns = {
  * and months before the account opened — are null so the grid can render them
  * as empty rather than as 0%.
  */
+export type MonthlyStats = {
+  bestMonth: { label: string; value: number } | null;
+  worstMonth: { label: string; value: number } | null;
+  bestYear: { label: string; value: number } | null;
+  worstYear: { label: string; value: number } | null;
+  longestWinRun: number;
+  longestLossRun: number;
+  avgMonth: number;
+  avgYear: number;
+};
+
+/**
+ * Derived entirely from the monthly grid — no new data source. Runs are
+ * counted in calendar order (oldest first), so a streak may span a year
+ * boundary; months with no data yet break neither run, they are skipped.
+ */
+export function monthlyStats(account: Account): MonthlyStats {
+  const rows = monthlyReturns(account);
+  const chronological = [...rows].reverse(); // oldest year first
+
+  const flat: { label: string; ret: number }[] = [];
+  for (const row of chronological) {
+    row.months.forEach((cell, i) => {
+      if (cell) flat.push({ label: `${MONTHS[i]} ${row.year}`, ret: cell.ret });
+    });
+  }
+
+  let bestMonth: MonthlyStats["bestMonth"] = null;
+  let worstMonth: MonthlyStats["worstMonth"] = null;
+  for (const m of flat) {
+    if (!bestMonth || m.ret > bestMonth.value)
+      bestMonth = { label: m.label, value: m.ret };
+    if (!worstMonth || m.ret < worstMonth.value)
+      worstMonth = { label: m.label, value: m.ret };
+  }
+
+  let bestYear: MonthlyStats["bestYear"] = null;
+  let worstYear: MonthlyStats["worstYear"] = null;
+  for (const r of rows) {
+    if (!bestYear || r.total > bestYear.value)
+      bestYear = { label: String(r.year), value: r.total };
+    if (!worstYear || r.total < worstYear.value)
+      worstYear = { label: String(r.year), value: r.total };
+  }
+
+  let longestWinRun = 0;
+  let longestLossRun = 0;
+  let win = 0;
+  let loss = 0;
+  for (const m of flat) {
+    if (m.ret >= 0) {
+      win++;
+      loss = 0;
+    } else {
+      loss++;
+      win = 0;
+    }
+    longestWinRun = Math.max(longestWinRun, win);
+    longestLossRun = Math.max(longestLossRun, loss);
+  }
+
+  const avgMonth = flat.length
+    ? flat.reduce((a, m) => a + m.ret, 0) / flat.length
+    : 0;
+  const avgYear = rows.length
+    ? rows.reduce((a, r) => a + r.total, 0) / rows.length
+    : 0;
+
+  return {
+    bestMonth,
+    worstMonth,
+    bestYear,
+    worstYear,
+    longestWinRun,
+    longestLossRun,
+    avgMonth,
+    avgYear,
+  };
+}
+
 export function monthlyReturns(account: Account): YearReturns[] {
   if (account.source === "html") return importedMonthlyReturns(account);
   const rand = seeded(hash(account.id) + 89);

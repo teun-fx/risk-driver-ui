@@ -1,5 +1,11 @@
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
-import { MONTHS, monthlyReturns, type Account, type MonthCell } from "@/lib/data";
+import {
+  MONTHS,
+  monthlyReturns,
+  monthlyStats,
+  type Account,
+  type MonthCell,
+} from "@/lib/data";
 import { cn } from "@/lib/utils";
 
 /**
@@ -32,11 +38,11 @@ function Cell({
 }) {
   if (cell === null) {
     return (
-      <div className="flex h-12 flex-col items-center justify-center">
-        <span className="text-ink-muted/35" aria-hidden>
-          ·
+      <div className="flex h-9 items-center justify-center">
+        <span className="text-[12.5px] text-ink-muted/45" aria-hidden>
+          –
         </span>
-        <span className="sr-only">No data</span>
+        <span className="sr-only">No data yet</span>
       </div>
     );
   }
@@ -46,7 +52,7 @@ function Cell({
   return (
     <div
       tabIndex={0}
-      className="group relative flex h-12 items-center justify-center rounded-xs outline-none focus-visible:ring-2 focus-visible:ring-accent"
+      className="group relative flex h-9 items-center justify-end rounded-xs outline-none focus-visible:ring-2 focus-visible:ring-accent"
     >
       {/* Same P&L inks as the rest of the app: profit green / loss red. */}
       <span
@@ -101,10 +107,9 @@ function Cell({
 export function MonthlyReturns({ account }: { account: Account }) {
   const rows = monthlyReturns(account);
 
+  const stats = monthlyStats(account);
   const cumulative =
     (rows.reduce((acc, r) => acc * (1 + r.total / 100), 1) - 1) * 100;
-  const best = Math.max(...rows.map((r) => r.total));
-  const worst = Math.min(...rows.map((r) => r.total));
 
   return (
     <Card className="flex min-w-0 flex-col">
@@ -121,18 +126,14 @@ export function MonthlyReturns({ account }: { account: Account }) {
             </span>
           </div>
         </div>
-
-        <div className="flex items-center gap-5">
-          <Extreme label="Best year" value={best} />
-          <Extreme label="Worst year" value={worst} />
-        </div>
       </CardHeader>
 
+      {/* Grid and derived stats sit side by side inside the one card, so the
+          slack the Total column used to hoard now carries information. */}
+      <div className="flex min-w-0 flex-col gap-4 pb-3 xl:flex-row">
       {/* No overflow-hidden here — the tooltip must escape the table box.
           The wrapper still scrolls horizontally on narrow screens. */}
-      {/* pb-3, not pb-1: the top row's flipped tooltip reaches ~4px past the
-          last row on a 3-year account, and overflow-x:auto clips it there. */}
-      <div className="min-w-0 overflow-x-auto px-1 pb-3">
+      <div className="min-w-0 flex-1 overflow-x-auto px-1">
         <table className="w-full border-collapse">
           <caption className="sr-only">
             Percentage return by month and year with intra-month max drawdown,
@@ -144,20 +145,20 @@ export function MonthlyReturns({ account }: { account: Account }) {
                 scope="col"
                 className="sticky left-0 z-10 bg-surface py-2 pr-3 pl-4 text-left text-[11px] font-normal text-ink-muted"
               >
-                Year
+                <span className="sr-only">Year</span>
               </th>
               {MONTHS.map((m) => (
                 <th
                   key={m}
                   scope="col"
-                  className="px-1 py-2 text-center text-[11px] font-normal text-ink-muted"
+                  className="px-2 py-2 text-right text-[11px] font-normal text-ink-muted"
                 >
                   {m}
                 </th>
               ))}
               <th
                 scope="col"
-                className="py-2 pr-4 pl-4 text-right text-[11px] font-normal text-ink-muted"
+                className="border-l border-line-strong py-2 pr-4 pl-4 text-right text-[11px] font-normal text-ink-muted"
               >
                 Total
               </th>
@@ -168,13 +169,13 @@ export function MonthlyReturns({ account }: { account: Account }) {
               <tr key={row.year}>
                 <th
                   scope="row"
-                  className="sticky left-0 z-10 border-t border-grid bg-surface py-0 pr-3 pl-4 text-left text-[12.5px] font-semibold tnum text-ink"
+                  className="sticky left-0 z-10 w-14 border-t border-grid bg-surface py-0 pr-3 pl-4 text-left text-[12.5px] font-semibold tnum text-ink"
                 >
                   {row.year}
                 </th>
 
                 {row.months.map((cell, i) => (
-                  <td key={i} className="border-t border-grid p-0.5 text-center">
+                  <td key={i} className="border-t border-grid px-2 py-0.5 text-right">
                     <Cell
                       cell={cell}
                       month={MONTHS[i]}
@@ -184,7 +185,7 @@ export function MonthlyReturns({ account }: { account: Account }) {
                   </td>
                 ))}
 
-                <td className="border-t border-l border-grid py-0 pr-4 pl-4 text-right">
+                <td className="border-t border-l border-line-strong py-0 pr-4 pl-4 text-right">
                   <span
                     className={cn(
                       "text-[12.5px] font-semibold tnum",
@@ -201,6 +202,43 @@ export function MonthlyReturns({ account }: { account: Account }) {
         </table>
       </div>
 
+        <div className="shrink-0 px-5 xl:w-72 xl:border-l xl:border-line xl:px-5">
+          <p className="mb-2.5 text-eyebrow text-ink-muted">Highlights</p>
+          <dl className="grid grid-cols-2 gap-x-5 gap-y-3">
+            <Stat
+              label="Best month"
+              value={stats.bestMonth?.value}
+              meta={stats.bestMonth?.label}
+            />
+            <Stat
+              label="Worst month"
+              value={stats.worstMonth?.value}
+              meta={stats.worstMonth?.label}
+            />
+            <Stat
+              label="Best year"
+              value={stats.bestYear?.value}
+              meta={stats.bestYear?.label}
+            />
+            <Stat
+              label="Worst year"
+              value={stats.worstYear?.value}
+              meta={stats.worstYear?.label}
+            />
+            <Stat
+              label="Longest winning run"
+              plain={`${stats.longestWinRun} ${stats.longestWinRun === 1 ? "month" : "months"}`}
+            />
+            <Stat
+              label="Longest losing run"
+              plain={`${stats.longestLossRun} ${stats.longestLossRun === 1 ? "month" : "months"}`}
+            />
+            <Stat label="Average month" value={stats.avgMonth} />
+            <Stat label="Average year" value={stats.avgYear} />
+          </dl>
+        </div>
+      </div>
+
       <p className="px-5 pt-2 pb-4 text-[11.5px] text-ink-muted">
         Percentage returns. Hover a month for its return and max drawdown.
         Annual totals are compounded, not summed.
@@ -209,19 +247,44 @@ export function MonthlyReturns({ account }: { account: Account }) {
   );
 }
 
-function Extreme({ label, value }: { label: string; value: number }) {
+/**
+ * One highlight: label above, figure below. Signed figures keep the app's
+ * P&L inks; counts stay neutral because a streak length has no direction.
+ */
+function Stat({
+  label,
+  value,
+  meta,
+  plain,
+}: {
+  label: string;
+  value?: number;
+  meta?: string;
+  plain?: string;
+}) {
   return (
-    <div className="text-right">
-      <p className="text-[11px] text-ink-muted">{label}</p>
-      <p
-        className={cn(
-          "mt-0.5 text-body font-semibold tnum",
-          value >= 0 ? "text-profit" : "text-loss",
+    <div className="min-w-0">
+      <dt className="text-[11px] text-ink-muted">{label}</dt>
+      <dd className="mt-0.5 flex items-baseline gap-1.5">
+        {plain !== undefined ? (
+          <span className="text-body font-semibold tnum text-ink">{plain}</span>
+        ) : (
+          <span
+            className={cn(
+              "text-body font-semibold tnum",
+              (value ?? 0) >= 0 ? "text-profit" : "text-loss",
+            )}
+          >
+            {sign(value ?? 0)}
+            {Math.abs(value ?? 0).toFixed(1)}%
+          </span>
         )}
-      >
-        {sign(value)}
-        {Math.abs(value).toFixed(1)}%
-      </p>
+        {meta && (
+          <span className="truncate text-[11px] tnum text-ink-muted">
+            {meta}
+          </span>
+        )}
+      </dd>
     </div>
   );
 }
