@@ -37,7 +37,7 @@ export function RiskPanel({ account }: { account: Account }) {
   const level = used > 70 ? "High" : used > 45 ? "Elevated" : "Normal";
   // The chip is the only place colour means anything here — the meters below
   // are plain ink so the card reads as one object, not a traffic light.
-  const tone = used > 70 ? "loss" : used > 45 ? "warn" : "profit";
+  const tone = used > 70 ? "loss" : used > 45 ? "info" : "profit";
 
   return (
     <Card>

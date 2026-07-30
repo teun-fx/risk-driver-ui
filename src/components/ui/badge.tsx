@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-type Tone = "neutral" | "profit" | "loss" | "warn" | "accent";
+type Tone = "neutral" | "profit" | "loss" | "warn" | "accent" | "info";
 
 const tones: Record<Tone, string> = {
   neutral: "border-line bg-raised text-ink-secondary",
@@ -8,6 +8,7 @@ const tones: Record<Tone, string> = {
   loss: "border-transparent bg-loss-soft text-loss",
   warn: "border-transparent bg-warn-soft text-warn",
   accent: "border-transparent bg-accent-soft text-accent",
+  info: "border-transparent bg-info-soft text-info",
 };
 
 export function Badge({

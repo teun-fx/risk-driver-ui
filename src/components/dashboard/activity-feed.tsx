@@ -1,4 +1,8 @@
+"use client";
+
+import { useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { TooltipBox, TooltipContent } from "@/components/ui/area-chart";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { pairsFor, tradesFor, type Account } from "@/lib/data";
@@ -57,6 +61,29 @@ export function TradesFeed({ account }: { account: Account }) {
 export function TradedPairs({ account }: { account: Account }) {
   const pairs = pairsFor(account);
 
+  // Same crossover anatomy as the equity curve: the floating tooltip card
+  // follows the pointer across the share bar.
+  const barRef = useRef<HTMLDivElement>(null);
+  const [hovered, setHovered] = useState<string | null>(null);
+  const [hoverPx, setHoverPx] = useState<{
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  } | null>(null);
+  const onMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    setHoverPx({
+      x: e.clientX - r.left,
+      y: e.clientY - r.top,
+      w: r.width,
+      h: r.height,
+    });
+  };
+
+  const active = pairs.find((p) => p.name === hovered);
+  const activeIndex = pairs.findIndex((p) => p.name === hovered);
+
   return (
     <Card>
       <CardHeader>
@@ -66,25 +93,81 @@ export function TradedPairs({ account }: { account: Account }) {
 
       <CardContent>
         {/* Stacked bar with 2px surface gaps between segments. */}
-        <div className="flex h-2 w-full gap-[2px] overflow-hidden rounded-full">
+        <div
+          ref={barRef}
+          className="relative flex h-2 w-full gap-[2px] rounded-full"
+          onMouseMove={onMove}
+          onMouseLeave={() => {
+            setHovered(null);
+            setHoverPx(null);
+          }}
+        >
           {pairs.map((p, i) => (
             <span
               key={p.name}
-              className="h-full first:rounded-l-full last:rounded-r-full"
+              tabIndex={0}
+              onMouseEnter={() => setHovered(p.name)}
+              onFocus={() => setHovered(p.name)}
+              onBlur={() => setHovered(null)}
+              aria-label={`${p.name}: ${p.value}% of volume, ${p.trades} trades, ${p.winRate}% win`}
+              className={cn(
+                "h-full cursor-pointer rounded-full outline-none",
+                "transition-opacity duration-150 ease-out",
+                "focus-visible:ring-2 focus-visible:ring-accent",
+                hovered !== null && hovered !== p.name && "opacity-30",
+              )}
               style={{
                 width: `${p.value}%`,
                 background: `var(--color-pair-${i + 1})`,
               }}
-              aria-hidden
             />
           ))}
+
+          {active && hoverPx && (
+            <TooltipBox
+              containerHeight={hoverPx.h}
+              containerRef={barRef}
+              containerWidth={hoverPx.w}
+              offset={14}
+              visible
+              x={hoverPx.x}
+              y={hoverPx.y}
+            >
+              <TooltipContent
+                title={active.name}
+                rows={[
+                  {
+                    color: `var(--color-pair-${activeIndex + 1})`,
+                    label: "Share of volume",
+                    value: `${active.value}%`,
+                  },
+                  {
+                    color: "var(--color-ink-muted)",
+                    label: "Trades",
+                    value: `${active.trades} · ${active.winRate}% win`,
+                  },
+                  {
+                    color: `var(--color-${active.pnl >= 0 ? "profit" : "loss"})`,
+                    label: "Net P&L",
+                    value: money(active.pnl, { signed: true }),
+                  },
+                ]}
+              />
+            </TooltipBox>
+          )}
         </div>
 
         <ul className="mt-4">
           {pairs.map((p, i) => (
             <li
               key={p.name}
-              className="flex items-center gap-2.5 border-b border-line py-3 last:border-0 last:pb-0"
+              onMouseEnter={() => setHovered(p.name)}
+              onMouseLeave={() => setHovered(null)}
+              className={cn(
+                "flex cursor-pointer items-center gap-2.5 border-b border-line py-3 last:border-0 last:pb-0",
+                "transition-opacity duration-150 ease-out",
+                hovered !== null && hovered !== p.name && "opacity-40",
+              )}
             >
               <span
                 className="size-1.5 shrink-0 rounded-full"
