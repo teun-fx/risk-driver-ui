@@ -1,8 +1,14 @@
 import type { Account, HistTrade } from "@/lib/data";
 
 /**
- * Parses a MetaTrader 4/5 HTML statement or Strategy Tester report into closed
- * trades.
+ * Parses trading history out of an uploaded HTML file. Two formats:
+ *
+ * 1. MetaTrader 4/5 statements and Strategy Tester reports (dollar P&L).
+ * 2. Spreadsheet journals exported from Google Sheets / Excel as HTML — one
+ *    sheet per file — recognised by their column names (Asset / Order /
+ *    Result / Return %). These record each trade as a signed percent return,
+ *    not dollars, so their trades carry the percent through the parse and
+ *    accountFromParse converts to money against the balance the user enters.
  *
  * It is header-driven, not position-driven: it finds the trades table by its
  * column names (a "Profit" column plus a "Type" column) and reads each field
@@ -28,6 +34,9 @@ export type ParseResult =
       symbols: string[];
       /** Starting balance read from the report, if present. */
       detectedBalance: number | null;
+      /** Journal sheets store each trade's pnl as a PERCENT return, converted
+          to money only in accountFromParse (fixed % of starting balance). */
+      journal?: boolean;
     }
   | { ok: false; error: string };
 
@@ -224,11 +233,14 @@ export function parseStatement(html: string): ParseResult {
     }
   }
 
+  // No MT4/MT5 table — try the spreadsheet-journal shape before giving up.
   if (!best || best.trades.length === 0) {
+    const journal = parseJournalRows(rows);
+    if (journal) return journal;
     return {
       ok: false,
       error:
-        "No trades found. Upload a MetaTrader 4/5 statement or Strategy Tester report that includes a closed-trades table.",
+        "No trades found. Upload a MetaTrader 4/5 statement, a Strategy Tester report, or a journal sheet with Asset / Order / Result / Return columns.",
     };
   }
 
@@ -245,6 +257,116 @@ export function parseStatement(html: string): ParseResult {
   };
 }
 
+/** "27/11" or "8/1" — day/month with no year. */
+const JOURNAL_DATE_RE = /^(\d{1,2})\/(\d{1,2})$/;
+
+/**
+ * Spreadsheet journals (Google Sheets HTML export). Header-driven like the MT
+ * path: the trades table is found by its column names, values read by name.
+ * The year is not in the date column — journals carry it in a Code column as
+ * M(M)YY ("1125" = Nov 2025, "126" = Jan 2026); rows without a valid code
+ * inherit the last known year and roll it over when the month wraps.
+ */
+function parseJournalRows(rows: Row[]): ParseResult | null {
+  const headerIdx = rows.findIndex((r) => {
+    const lower = r.map((c) => c.toLowerCase());
+    return (
+      lower.includes("asset") &&
+      lower.includes("order") &&
+      lower.includes("result") &&
+      lower.some((c) => c.startsWith("return"))
+    );
+  });
+  if (headerIdx < 0) return null;
+
+  const lower = rows[headerIdx].map((c) => c.toLowerCase());
+  const col = {
+    date: lower.findIndex((c) => c === "open date" || c === "date"),
+    time: lower.findIndex((c) => c === "open time" || c === "time" || c === "tijd"),
+    code: lower.indexOf("code"),
+    asset: lower.indexOf("asset"),
+    order: lower.indexOf("order"),
+    result: lower.indexOf("result"),
+    ret: lower.findIndex((c) => c.startsWith("return")),
+  };
+  if (col.date < 0) return null;
+
+  const trades: HistTrade[] = [];
+  let id = 0;
+  let year: number | null = null;
+  let prevMonth = 0;
+
+  for (let i = headerIdx + 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (row.length <= col.ret) continue;
+
+    const dm = (row[col.date] ?? "").match(JOURNAL_DATE_RE);
+    if (!dm) continue;
+    const day = +dm[1];
+    const month = +dm[2];
+    if (month < 1 || month > 12 || day < 1 || day > 31) continue;
+
+    // Sheets error cells ("#VERW!", "#REF!") and stray notes are not trades.
+    const asset = (row[col.asset] ?? "").trim();
+    if (!/^[a-z0-9]{4,10}$/i.test(asset) || /^\d+$/.test(asset)) continue;
+
+    const order = (row[col.order] ?? "").toLowerCase().trim();
+    if (order !== "buy" && order !== "sell") continue;
+
+    if (!(row[col.result] ?? "").trim()) continue; // still open / unfinished
+
+    const pct = parseMoney(row[col.ret] ?? "");
+    if (pct == null || Math.abs(pct) > 100) continue;
+
+    // Year from the M(M)YY code when present and sane.
+    const codeMatch =
+      col.code >= 0 ? (row[col.code] ?? "").match(/^(\d{1,2})(\d{2})$/) : null;
+    if (codeMatch && +codeMatch[1] >= 1 && +codeMatch[1] <= 12) {
+      year = 2000 + +codeMatch[2];
+    } else if (year != null && month < prevMonth) {
+      year += 1; // rows are chronological; a month wrap means a new year
+    }
+    if (year == null) continue; // no anchor yet — can't date this row
+    prevMonth = month;
+
+    let hh = 0;
+    let mm = 0;
+    const tm =
+      col.time >= 0 ? (row[col.time] ?? "").match(/^(\d{1,2}):(\d{2})$/) : null;
+    if (tm) {
+      hh = +tm[1];
+      mm = +tm[2];
+    }
+
+    trades.push({
+      id: id++,
+      date: new Date(year, month - 1, day, hh, mm),
+      pair: asset.toUpperCase(),
+      side: order === "buy" ? "Long" : "Short",
+      // PERCENT, not money — converted in accountFromParse.
+      pnl: Math.round(pct * 100) / 100,
+      durationHours: 0,
+      commission: 0,
+      swap: 0,
+    });
+  }
+
+  if (!trades.length) return null;
+
+  trades.sort((a, b) => a.date.getTime() - b.date.getTime());
+  return {
+    ok: true,
+    trades,
+    firstDate: trades[0].date,
+    lastDate: trades[trades.length - 1].date,
+    // Percent here too; accountFromParse recomputes in money.
+    netPnl: Math.round(trades.reduce((a, t) => a + t.pnl, 0) * 100) / 100,
+    symbols: [...new Set(trades.map((t) => t.pair))],
+    detectedBalance: null,
+    journal: true,
+  };
+}
+
 /** Builds a ready-to-store Account from a successful parse. */
 export function accountFromParse(
   opts: { name: string; startingBalance: number; riskPerTrade: number },
@@ -252,14 +374,27 @@ export function accountFromParse(
 ): Account {
   // The report's own starting balance wins when present — it's exact.
   const startingBalance = res.detectedBalance ?? opts.startingBalance;
+
+  // Journal trades arrive as percent returns; each becomes a fixed share of
+  // the starting balance (the user's chosen basis — not compounded).
+  let trades = res.trades;
+  let netPnl = res.netPnl;
+  if (res.journal) {
+    trades = res.trades.map((t) => ({
+      ...t,
+      pnl: Math.round(startingBalance * t.pnl) / 100,
+    }));
+    netPnl =
+      Math.round(trades.reduce((a, t) => a + t.pnl, 0) * 100) / 100;
+  }
   return {
     id: `html-${Date.now().toString(36)}`,
     name: opts.name.trim() || "Imported account",
     broker: "HTML statement",
     since: res.firstDate.getFullYear(),
-    equity: Math.round(startingBalance + res.netPnl),
+    equity: Math.round(startingBalance + netPnl),
     source: "html",
-    trades: res.trades,
+    trades,
     startingBalance,
     riskPerTrade: opts.riskPerTrade,
     hasBenchmark: false,
