@@ -108,8 +108,12 @@ export function MonthlyReturns({ account }: { account: Account }) {
   const rows = monthlyReturns(account);
 
   const stats = monthlyStats(account);
-  const cumulative =
-    (rows.reduce((acc, r) => acc * (1 + r.total / 100), 1) - 1) * 100;
+  // Journal accounts on the fixed basis don't compound anywhere — their
+  // headline is the plain sum of the yearly totals, labeled honestly.
+  const fixed = account.journal && account.basis === "fixed";
+  const cumulative = fixed
+    ? rows.reduce((acc, r) => acc + r.total, 0)
+    : (rows.reduce((acc, r) => acc * (1 + r.total / 100), 1) - 1) * 100;
 
   return (
     <Card className="flex min-w-0 flex-col">
@@ -122,7 +126,9 @@ export function MonthlyReturns({ account }: { account: Account }) {
               {Math.abs(cumulative).toFixed(1)}%
             </span>
             <span className="text-label text-ink-muted">
-              compounded since {account.since}
+              {fixed
+                ? `of starting balance since ${account.since}`
+                : `compounded since ${account.since}`}
             </span>
           </div>
         </div>

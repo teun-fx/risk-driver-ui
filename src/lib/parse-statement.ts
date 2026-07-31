@@ -1,4 +1,4 @@
-import type { Account, HistTrade } from "@/lib/data";
+import type { Account, HistTrade, JournalBasis } from "@/lib/data";
 
 /**
  * Parses trading history out of an uploaded HTML file. Two formats:
@@ -350,13 +350,17 @@ function parseJournalRows(rows: Row[], fileName?: string): ParseResult | null {
       mm = +tm[2];
     }
 
+    const rounded = Math.round(pct * 100) / 100;
     trades.push({
       id: id++,
       date: new Date(year, month - 1, day, hh, mm),
       pair: asset.toUpperCase(),
       side: order === "buy" ? "Long" : "Short",
-      // PERCENT, not money — converted in accountFromParse.
-      pnl: Math.round(pct * 100) / 100,
+      // PERCENT, not money — converted per basis in accountFromParse. The raw
+      // percent also rides along in pctReturn so the basis can be switched
+      // later without re-uploading the file.
+      pnl: rounded,
+      pctReturn: rounded,
       durationHours: 0,
       commission: 0,
       swap: 0,
@@ -390,37 +394,73 @@ function parseJournalRows(rows: Row[], fileName?: string): ParseResult | null {
   };
 }
 
+/**
+ * Recomputes a journal account's money P&L from the raw percents under the
+ * given basis. Pure — returns a new Account — so the UI can flip between the
+ * two readings of the same sheet without re-uploading anything.
+ *
+ *  - "compounded": each percent applies to the equity at that moment, the way
+ *    the money would actually have grown. Monthly returns measured on the
+ *    equity curve then match the sheet's percents exactly.
+ *  - "fixed": each percent is worth the same dollars forever (percent of the
+ *    STARTING balance). Simple, but a late +1% is the same $ as an early one.
+ */
+export function withJournalBasis(
+  account: Account,
+  basis: JournalBasis,
+): Account {
+  const start = account.startingBalance ?? 0;
+  const ordered = [...(account.trades ?? [])].sort(
+    (a, b) => a.date.getTime() - b.date.getTime(),
+  );
+
+  let bal = start;
+  const trades = ordered.map((t) => {
+    const pct = t.pctReturn ?? 0;
+    const pnl =
+      basis === "compounded"
+        ? Math.round(bal * pct) / 100
+        : Math.round(start * pct) / 100;
+    bal += pnl;
+    return { ...t, pnl };
+  });
+
+  return {
+    ...account,
+    trades,
+    equity: Math.round(bal),
+    basis,
+  };
+}
+
 /** Builds a ready-to-store Account from a successful parse. */
 export function accountFromParse(
   opts: { name: string; startingBalance: number; riskPerTrade: number },
   res: Extract<ParseResult, { ok: true }>,
+  /** Journal sheets only: how percents become money. */
+  basis: JournalBasis = "compounded",
 ): Account {
   // The report's own starting balance wins when present — it's exact.
   const startingBalance = res.detectedBalance ?? opts.startingBalance;
 
-  // Journal trades arrive as percent returns; each becomes a fixed share of
-  // the starting balance (the user's chosen basis — not compounded).
-  let trades = res.trades;
-  let netPnl = res.netPnl;
-  if (res.journal) {
-    trades = res.trades.map((t) => ({
-      ...t,
-      pnl: Math.round(startingBalance * t.pnl) / 100,
-    }));
-    netPnl =
-      Math.round(trades.reduce((a, t) => a + t.pnl, 0) * 100) / 100;
-  }
-  return {
+  const account: Account = {
     id: `html-${Date.now().toString(36)}`,
     name: opts.name.trim() || "Imported account",
     broker: "HTML statement",
     since: res.firstDate.getFullYear(),
-    equity: Math.round(startingBalance + netPnl),
+    equity: Math.round(startingBalance + res.netPnl),
     source: "html",
-    trades,
+    trades: res.trades,
     startingBalance,
     riskPerTrade: opts.riskPerTrade,
     hasBenchmark: false,
     updatedAt: new Date().toISOString(),
   };
+
+  // Journal trades arrive as percent returns; convert under the chosen basis.
+  if (res.journal) {
+    account.journal = true;
+    return withJournalBasis(account, basis);
+  }
+  return account;
 }

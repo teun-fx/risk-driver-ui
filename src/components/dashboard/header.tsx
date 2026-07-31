@@ -3,7 +3,10 @@
 import { usePathname } from "next/navigation";
 import { Bell, ChevronDown } from "lucide-react";
 import { IconButton } from "@/components/ui/button";
+import { BasisSwitch } from "@/components/ui/basis-switch";
 import { AccountSelect } from "@/components/dashboard/account-select";
+import { useAccount } from "@/components/account-context";
+import { withJournalBasis } from "@/lib/parse-statement";
 import type { Account } from "@/lib/data";
 
 /** Per-route heading. The dashboard greets; every other page names itself. */
@@ -43,6 +46,7 @@ export function Header({
         </div>
 
         <div className="ml-auto flex items-center gap-2">
+          <JournalBasisToggle account={account} />
           <div className="hidden w-[280px] md:block">
             <AccountSelect value={account} onChange={onAccountChange} />
           </div>
@@ -73,5 +77,28 @@ export function Header({
         <AccountSelect value={account} onChange={onAccountChange} />
       </div>
     </header>
+  );
+}
+
+/**
+ * Journal accounts only: flips how the sheet's percent returns are read —
+ * compounded on running equity or a fixed share of the starting balance —
+ * and recomputes every trade from the stored raw percents. The whole page
+ * re-derives from the account, so all charts and tables follow instantly.
+ */
+function JournalBasisToggle({ account }: { account: Account }) {
+  const { updateAccount } = useAccount();
+  if (!account.journal) return null;
+  return (
+    <BasisSwitch
+      className="hidden lg:flex"
+      value={account.basis ?? "compounded"}
+      onChange={(b) =>
+        updateAccount({
+          ...withJournalBasis(account, b),
+          updatedAt: new Date().toISOString(),
+        })
+      }
+    />
   );
 }

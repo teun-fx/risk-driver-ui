@@ -57,7 +57,14 @@ export type Account = {
   accountType?: string;
   /** ISO timestamp of the last import/edit, for the overview's Last updated. */
   updatedAt?: string;
+  /** True when the trades came from a spreadsheet journal (percent returns). */
+  journal?: boolean;
+  /** How journal percents become money: a fixed share of the starting balance
+      every time, or compounded on the running equity. Switchable in the UI. */
+  basis?: "fixed" | "compounded";
 };
+
+export type JournalBasis = NonNullable<Account["basis"]>;
 
 /** The two demo accounts kept alongside imported ones (widest date range). */
 export const demoAccounts: Account[] = [
@@ -106,7 +113,9 @@ function importedDailyEquity(account: Account): { date: Date; equity: number }[]
       bal += trades[ti].pnl;
       ti++;
     }
-    out.push({ date: new Date(cursor), equity: Math.round(bal) });
+    // Cents, not whole dollars — monthly returns divide successive balances,
+    // and rounding to $1 here shows up as ±0.01% noise in that table.
+    out.push({ date: new Date(cursor), equity: Math.round(bal * 100) / 100 });
     cursor.setDate(cursor.getDate() + 1);
   }
   return out;
@@ -260,6 +269,15 @@ function importedMonthlyReturns(account: Account): YearReturns[] {
   const startYear = daily[0].date.getFullYear();
   const endYear = daily[daily.length - 1].date.getFullYear();
 
+  // Journal on the fixed basis: every trade percent is measured against the
+  // STARTING balance, so months must be too — dividing by the running equity
+  // would understate later months versus the user's own sheet. Totals are
+  // then plain sums, matching the basis (nothing compounds under "fixed").
+  const fixedBase =
+    account.journal && account.basis === "fixed"
+      ? (account.startingBalance ?? 0) || null
+      : null;
+
   // Month-end balance lookup, plus intra-month low for drawdown.
   const rows: YearReturns[] = [];
   for (let year = startYear; year <= endYear; year++) {
@@ -275,19 +293,29 @@ function importedMonthlyReturns(account: Account): YearReturns[] {
       );
       const openBal = before.length ? before[before.length - 1].equity : (account.startingBalance ?? inMonth[0].equity);
       const closeBal = inMonth[inMonth.length - 1].equity;
-      const ret = openBal ? ((closeBal - openBal) / openBal) * 100 : 0;
+      const ret = fixedBase
+        ? ((closeBal - openBal) / fixedBase) * 100
+        : openBal
+          ? ((closeBal - openBal) / openBal) * 100
+          : 0;
       // Intra-month drawdown from the month's running low against its peak.
       let peak = openBal;
       let dd = 0;
       for (const p of inMonth) {
         peak = Math.max(peak, p.equity);
-        if (peak > 0) dd = Math.min(dd, ((p.equity - peak) / peak) * 100);
+        const base = fixedBase ?? peak;
+        if (base > 0) dd = Math.min(dd, ((p.equity - peak) / base) * 100);
       }
       return { ret: Math.round(ret * 100) / 100, dd: Math.round(dd * 100) / 100 };
     });
-    const total =
-      (months.reduce<number>((acc, v) => acc * (1 + (v?.ret ?? 0) / 100), 1) - 1) *
-      100;
+    const total = fixedBase
+      ? months.reduce<number>((acc, v) => acc + (v?.ret ?? 0), 0)
+      : (months.reduce<number>(
+          (acc, v) => acc * (1 + (v?.ret ?? 0) / 100),
+          1,
+        ) -
+          1) *
+        100;
     rows.push({ year, months, total: Math.round(total * 100) / 100 });
   }
   return rows.reverse();
@@ -515,6 +543,10 @@ export type HistTrade = {
   commission?: number;
   /** Swap/rollover for the trade. Optional for the same reason. */
   swap?: number;
+  /** Journal imports only: the trade's raw percent return from the sheet.
+      `pnl` is derived from it per the account's P&L basis and can be
+      recomputed at any time (see withJournalBasis). */
+  pctReturn?: number;
 };
 
 /**

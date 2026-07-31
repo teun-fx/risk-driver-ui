@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { motion } from "motion/react";
 import { useRouter } from "next/navigation";
 import {
@@ -22,9 +22,21 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog } from "@/components/ui/dialog";
 import { useAccount } from "@/components/account-context";
-import { accountFromParse, parseStatement } from "@/lib/parse-statement";
+import { BasisSwitch } from "@/components/ui/basis-switch";
+import {
+  accountFromParse,
+  parseStatement,
+  type ParseResult,
+} from "@/lib/parse-statement";
 import { cn, money, pct } from "@/lib/utils";
-import { TODAY, dailyEquityFor, type Account } from "@/lib/data";
+import {
+  MONTHS,
+  TODAY,
+  dailyEquityFor,
+  monthlyReturns,
+  type Account,
+  type JournalBasis,
+} from "@/lib/data";
 
 const METHODS = [
   { id: "html", label: "HTML statement", hint: "MT4 / MT5 export", icon: FileText, ready: true },
@@ -178,6 +190,10 @@ export function Accounts() {
   const [fileText, setFileText] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  /** Parsed as soon as a file is chosen, so the user checks the numbers
+      BEFORE the account exists. Connect just confirms what's shown. */
+  const [preview, setPreview] = useState<Extract<ParseResult, { ok: true }> | null>(null);
+  const [basis, setBasis] = useState<JournalBasis>("compounded");
   const fileRef = useRef<HTMLInputElement>(null);
 
   function openAdd() {
@@ -189,6 +205,8 @@ export function Accounts() {
     setFileName("");
     setFileText("");
     setError("");
+    setPreview(null);
+    setBasis("compounded");
     setOpen(true);
   }
 
@@ -201,6 +219,8 @@ export function Accounts() {
     setFileName("");
     setFileText("");
     setError("");
+    setPreview(null);
+    setBasis("compounded");
     setOpen(true);
   }
 
@@ -218,8 +238,19 @@ export function Accounts() {
         : b[0] === 0xfe && b[1] === 0xff
           ? "utf-16be"
           : "utf-8";
-    setFileText(new TextDecoder(enc).decode(buf));
+    const text = new TextDecoder(enc).decode(buf);
+    setFileText(text);
     if (!name) setName(file.name.replace(/\.html?$/i, ""));
+
+    // Parse immediately — the preview below the form is the check that the
+    // sheet was read right, before anything is saved.
+    const res = parseStatement(text, file.name);
+    if (res.ok) {
+      setPreview(res);
+    } else {
+      setPreview(null);
+      setError(res.error);
+    }
   }
 
   function onConnect() {
@@ -228,20 +259,24 @@ export function Accounts() {
       setError("Choose an HTML statement first.");
       return;
     }
-    setBusy(true);
-    const res = parseStatement(fileText, fileName);
-    if (!res.ok) {
-      setError(res.error);
-      setBusy(false);
+    if (!preview) {
+      const res = parseStatement(fileText, fileName);
+      if (!res.ok) {
+        setError(res.error);
+        return;
+      }
+      setPreview(res);
       return;
     }
+    setBusy(true);
     const fresh = accountFromParse(
       {
         name,
         startingBalance: Math.max(0, parseFloat(balance) || 0),
         riskPerTrade: Math.max(0, parseFloat(risk) || 0),
       },
-      res,
+      preview,
+      basis,
     );
     if (replaceTarget) {
       // Keep identity and user-set labels; refresh the data.
@@ -463,6 +498,8 @@ export function Accounts() {
       <Dialog
         open={open}
         onClose={() => setOpen(false)}
+        // The import preview shows a year × 12-month grid — give it room.
+        className={step === "html" ? "max-w-2xl" : undefined}
         title={
           replaceTarget
             ? `Replace statement — ${replaceTarget.name}`
@@ -604,11 +641,24 @@ export function Accounts() {
               </p>
             )}
 
+            {preview && (
+              <ImportPreview
+                res={preview}
+                balance={Math.max(0, parseFloat(balance) || 0)}
+                basis={basis}
+                onBasis={setBasis}
+              />
+            )}
+
             <div className="flex justify-end gap-2 pt-1">
               <Button variant="ghost" onClick={() => setOpen(false)}>
                 Cancel
               </Button>
-              <Button variant="primary" onClick={onConnect} disabled={busy}>
+              <Button
+                variant="primary"
+                onClick={onConnect}
+                disabled={busy || !preview}
+              >
                 {replaceTarget ? "Replace data" : "Connect account"}
               </Button>
             </div>
@@ -666,6 +716,186 @@ export function Accounts() {
         </div>
       </Dialog>
     </>
+  );
+}
+
+// Month-year only — day-level precision doesn't fit the stat cell and adds
+// nothing to a range check.
+const previewDate = (d: Date) =>
+  d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+
+/**
+ * What the app understood from the uploaded file, shown BEFORE the account is
+ * created: headline stats and the monthly returns by year, exactly as the
+ * dashboard will compute them. If these numbers don't match the user's own
+ * sheet, this is the moment to find out — not three screens later.
+ */
+function ImportPreview({
+  res,
+  balance,
+  basis,
+  onBasis,
+}: {
+  res: Extract<ParseResult, { ok: true }>;
+  balance: number;
+  basis: JournalBasis;
+  onBasis: (b: JournalBasis) => void;
+}) {
+  // A throwaway account built the same way Connect will build it, so the
+  // preview and the dashboard can never disagree.
+  const temp = useMemo(
+    () =>
+      accountFromParse(
+        { name: "preview", startingBalance: balance, riskPerTrade: 1 },
+        res,
+        basis,
+      ),
+    [res, balance, basis],
+  );
+
+  const start = temp.startingBalance ?? 0;
+  const ret = start ? ((temp.equity - start) / start) * 100 : 0;
+  const years = useMemo(() => monthlyReturns(temp), [temp]);
+
+  const stats: { label: string; value: string; tone?: "profit" | "loss" }[] = [
+    { label: "Trades", value: String(res.trades.length) },
+    {
+      label: "Period",
+      value: `${previewDate(res.firstDate)} – ${previewDate(res.lastDate)}`,
+    },
+    {
+      label: "Net return",
+      value: pct(ret, { signed: true }),
+      tone: ret >= 0 ? "profit" : "loss",
+    },
+    { label: "Final equity", value: money(temp.equity) },
+  ];
+
+  return (
+    <section
+      aria-label="Import preview"
+      className="overflow-hidden rounded-md border border-line bg-raised/50"
+    >
+      <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
+        <div>
+          <p className="text-body font-medium text-ink">Check the numbers</p>
+          <p className="text-label text-ink-muted">
+            {res.journal
+              ? "Read as a journal sheet — percent returns per trade"
+              : "Read as a MetaTrader statement — dollar P&L per trade"}
+          </p>
+        </div>
+        {res.journal && <BasisSwitch value={basis} onChange={onBasis} />}
+      </div>
+
+      <dl className="grid grid-cols-2 gap-x-6 gap-y-3 px-4 py-3.5 sm:grid-cols-4">
+        {stats.map((s) => (
+          <div key={s.label} className="min-w-0">
+            <dt className="text-[10.5px] leading-3 text-ink-muted">{s.label}</dt>
+            <dd
+              className={cn(
+                "mt-1 truncate text-[13px] leading-4 font-semibold tnum",
+                s.tone === "profit"
+                  ? "text-profit"
+                  : s.tone === "loss"
+                    ? "text-loss"
+                    : "text-ink",
+              )}
+            >
+              {s.value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+
+      <div className="overflow-x-auto border-t border-grid px-1 pb-1">
+        <table className="w-full border-collapse">
+          <caption className="sr-only">
+            Monthly percentage returns by year, as they will appear on the
+            dashboard
+          </caption>
+          <thead>
+            <tr>
+              <th
+                scope="col"
+                className="py-1.5 pr-2 pl-3 text-left text-[10px] font-normal text-ink-muted"
+              >
+                <span className="sr-only">Year</span>
+              </th>
+              {MONTHS.map((m) => (
+                <th
+                  key={m}
+                  scope="col"
+                  className="px-1.5 py-1.5 text-right text-[10px] font-normal text-ink-muted"
+                >
+                  {m}
+                </th>
+              ))}
+              <th
+                scope="col"
+                className="border-l border-grid py-1.5 pr-3 pl-2 text-right text-[10px] font-normal text-ink-muted"
+              >
+                Total
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {years.map((row) => (
+              <tr key={row.year}>
+                <th
+                  scope="row"
+                  className="border-t border-grid py-1.5 pr-2 pl-3 text-left text-[11px] font-semibold tnum text-ink"
+                >
+                  {row.year}
+                </th>
+                {row.months.map((cell, i) => (
+                  <td
+                    key={i}
+                    className="border-t border-grid px-1.5 py-1.5 text-right"
+                  >
+                    {cell === null ? (
+                      <span className="text-[11px] text-ink-muted/45" aria-hidden>
+                        –
+                      </span>
+                    ) : (
+                      <span
+                        className={cn(
+                          "text-[11px] font-medium tnum",
+                          cell.ret >= 0 ? "text-profit" : "text-loss",
+                        )}
+                      >
+                        {cell.ret >= 0 ? "+" : "−"}
+                        {Math.abs(cell.ret).toFixed(1)}
+                      </span>
+                    )}
+                  </td>
+                ))}
+                <td className="border-t border-l border-grid py-1.5 pr-3 pl-2 text-right">
+                  <span
+                    className={cn(
+                      "text-[11px] font-semibold tnum",
+                      row.total >= 0 ? "text-profit" : "text-loss",
+                    )}
+                  >
+                    {row.total >= 0 ? "+" : "−"}
+                    {Math.abs(row.total).toFixed(1)}%
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {res.journal && (
+        <p className="border-t border-grid px-4 py-2.5 text-[11px] leading-4 text-ink-muted">
+          {basis === "compounded"
+            ? "Compounded: each trade’s % applies to the equity at that moment, so monthly figures match your sheet exactly."
+            : "Fixed: each trade’s % is worth the same dollars throughout (percent of the starting balance)."}{" "}
+          You can switch this later from the dashboard.
+        </p>
+      )}
+    </section>
   );
 }
 
