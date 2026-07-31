@@ -229,7 +229,7 @@ export function Accounts() {
       return;
     }
     setBusy(true);
-    const res = parseStatement(fileText);
+    const res = parseStatement(fileText, fileName);
     if (!res.ok) {
       setError(res.error);
       setBusy(false);

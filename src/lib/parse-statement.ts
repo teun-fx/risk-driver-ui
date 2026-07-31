@@ -102,7 +102,7 @@ function findHeader(rows: Row[], from: number) {
   return null;
 }
 
-export function parseStatement(html: string): ParseResult {
+export function parseStatement(html: string, fileName?: string): ParseResult {
   let doc: Document;
   try {
     doc = new DOMParser().parseFromString(html, "text/html");
@@ -235,7 +235,7 @@ export function parseStatement(html: string): ParseResult {
 
   // No MT4/MT5 table — try the spreadsheet-journal shape before giving up.
   if (!best || best.trades.length === 0) {
-    const journal = parseJournalRows(rows);
+    const journal = parseJournalRows(rows, fileName);
     if (journal) return journal;
     return {
       ok: false,
@@ -265,9 +265,11 @@ const JOURNAL_DATE_RE = /^(\d{1,2})\/(\d{1,2})$/;
  * path: the trades table is found by its column names, values read by name.
  * The year is not in the date column — journals carry it in a Code column as
  * M(M)YY ("1125" = Nov 2025, "126" = Jan 2026); rows without a valid code
- * inherit the last known year and roll it over when the month wraps.
+ * inherit the last known year and roll it over when the month wraps. Sheets
+ * with an empty Code column (e.g. a per-year sheet named "2024") get their
+ * year from the file name instead.
  */
-function parseJournalRows(rows: Row[]): ParseResult | null {
+function parseJournalRows(rows: Row[], fileName?: string): ParseResult | null {
   const headerIdx = rows.findIndex((r) => {
     const lower = r.map((c) => c.toLowerCase());
     return (
@@ -293,8 +295,12 @@ function parseJournalRows(rows: Row[]): ParseResult | null {
 
   const trades: HistTrade[] = [];
   let id = 0;
-  let year: number | null = null;
+  // A year in the file name ("2024.html") seeds the anchor for sheets whose
+  // Code column is empty; an in-row code still overrides it.
+  const nameYear = fileName?.match(/\b(20\d{2})\b/);
+  let year: number | null = nameYear ? +nameYear[1] : null;
   let prevMonth = 0;
+  let skippedForYear = 0;
 
   for (let i = headerIdx + 1; i < rows.length; i++) {
     const row = rows[i];
@@ -323,10 +329,16 @@ function parseJournalRows(rows: Row[]): ParseResult | null {
       col.code >= 0 ? (row[col.code] ?? "").match(/^(\d{1,2})(\d{2})$/) : null;
     if (codeMatch && +codeMatch[1] >= 1 && +codeMatch[1] <= 12) {
       year = 2000 + +codeMatch[2];
-    } else if (year != null && month < prevMonth) {
-      year += 1; // rows are chronological; a month wrap means a new year
+    } else if (year != null && prevMonth - month >= 6) {
+      // Rows are chronological, so a big backwards jump (Dec -> Jan) is a new
+      // year. Small dips are data-entry typos ("25/5" between April rows) and
+      // must NOT roll the year, or one typo shifts the rest of the sheet.
+      year += 1;
     }
-    if (year == null) continue; // no anchor yet — can't date this row
+    if (year == null) {
+      skippedForYear++; // no anchor yet — can't date this row
+      continue;
+    }
     prevMonth = month;
 
     let hh = 0;
@@ -351,7 +363,18 @@ function parseJournalRows(rows: Row[]): ParseResult | null {
     });
   }
 
-  if (!trades.length) return null;
+  if (!trades.length) {
+    // The journal table was there, the trades were there — only the year was
+    // missing. Say exactly that instead of the generic "no trades found".
+    if (skippedForYear > 0) {
+      return {
+        ok: false,
+        error:
+          "Found trades but no year: the dates are day/month only. Put the year in the file name (e.g. 2024.html) or fill the Code column (1124 = Nov 2024).",
+      };
+    }
+    return null;
+  }
 
   trades.sort((a, b) => a.date.getTime() - b.date.getTime());
   return {
