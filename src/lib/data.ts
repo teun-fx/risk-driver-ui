@@ -308,14 +308,20 @@ function importedMonthlyReturns(account: Account): YearReturns[] {
       }
       return { ret: Math.round(ret * 100) / 100, dd: Math.round(dd * 100) / 100 };
     });
+    // Yearly total straight from the equity curve, NOT by compounding the
+    // rounded month cells — 12 cells of ±0.005 rounding already drift, and
+    // the report headline this must match is equity-based.
+    const inYear = daily.filter((p) => p.date.getFullYear() === year);
+    const beforeYear = daily.filter((p) => p.date.getFullYear() < year);
+    const yOpen = beforeYear.length
+      ? beforeYear[beforeYear.length - 1].equity
+      : (account.startingBalance ?? (inYear[0]?.equity || 0));
+    const yClose = inYear.length ? inYear[inYear.length - 1].equity : yOpen;
     const total = fixedBase
-      ? months.reduce<number>((acc, v) => acc + (v?.ret ?? 0), 0)
-      : (months.reduce<number>(
-          (acc, v) => acc * (1 + (v?.ret ?? 0) / 100),
-          1,
-        ) -
-          1) *
-        100;
+      ? ((yClose - yOpen) / fixedBase) * 100
+      : yOpen
+        ? ((yClose - yOpen) / yOpen) * 100
+        : 0;
     rows.push({ year, months, total: Math.round(total * 100) / 100 });
   }
   return rows.reverse();

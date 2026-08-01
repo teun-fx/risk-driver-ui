@@ -117,9 +117,16 @@ export function MonthlyReturns({ account }: { account: Account }) {
   // Journal accounts on the fixed basis don't compound anywhere — their
   // headline is the plain sum of the yearly totals, labeled honestly.
   const fixed = account.journal && account.basis === "fixed";
-  const cumulative = fixed
-    ? rows.reduce((acc, r) => acc + r.total, 0)
-    : (rows.reduce((acc, r) => acc * (1 + r.total / 100), 1) - 1) * 100;
+  // Imported accounts: headline straight from equity. Compounding the table's
+  // ROUNDED cells drifts (145 months × ±0.005 showed 2309.9 vs a true 2310.4)
+  // and must always equal the equity curve's own gain figure.
+  const start = account.startingBalance ?? 0;
+  const cumulative =
+    account.source === "html" && start > 0
+      ? ((account.equity - start) / start) * 100
+      : fixed
+        ? rows.reduce((acc, r) => acc + r.total, 0)
+        : (rows.reduce((acc, r) => acc * (1 + r.total / 100), 1) - 1) * 100;
 
   return (
     <Card className="flex min-w-0 flex-col">
