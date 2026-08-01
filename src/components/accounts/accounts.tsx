@@ -254,9 +254,13 @@ export function Accounts() {
       try {
         const { pdfToText } = await import("@/lib/pdf-text");
         text = await pdfToText(buf);
-      } catch {
+      } catch (err) {
         setPreview(null);
-        setError("This PDF could not be read — is it a text-based report?");
+        // Surface the real reason — "could not be read" hides whether it's
+        // the file, the browser, or the PDF engine.
+        const detail =
+          err instanceof Error && err.message ? ` (${err.message})` : "";
+        setError(`This PDF could not be read${detail}.`);
         return;
       }
     } else {
