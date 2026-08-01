@@ -316,14 +316,17 @@ export function parseStatement(text: string, fileName?: string): ParseResult {
     }
   }
 
-  // No MT4/MT5 table — try the spreadsheet-journal shape before giving up.
+  // No MT4/MT5 table — try the spreadsheet-journal shape, then the plain-text
+  // trade list (PDF backtest reports), before giving up.
   if (!best || best.trades.length === 0) {
     const journal = parseJournalRows(rows, fileName);
     if (journal) return journal;
+    const list = parseTradeListText(text);
+    if (list) return list;
     return {
       ok: false,
       error:
-        "No trades found. Upload a MetaTrader 4/5 statement, a Strategy Tester report, or a journal export (HTML or CSV) with Asset / Order / Result / Return columns.",
+        "No trades found. Upload a MetaTrader 4/5 statement, a Strategy Tester report (HTML or PDF), or a journal export (HTML or CSV) with Asset / Order / Result / Return columns.",
     };
   }
 
@@ -576,6 +579,64 @@ export function withJournalBasis(
     trades,
     equity: Math.round(bal),
     basis,
+  };
+}
+
+/**
+ * Plain-text trade lists — the shape Quant Analyzer PDFs (and similar
+ * backtest reports) carry: one line per trade with a side, an open and a
+ * close datetime, and the P&L as a percent. Percent-based like a journal, so
+ * the compounding switch applies; dates are full, so no year anchoring.
+ *
+ *   154 Buy 20.01.2015 07:07:45 118.311 3.52 21.01.2015 04:37:20 118.316 0.03 % sl
+ */
+const TRADE_LINE_RE =
+  /(Buy|Sell)\s+(\d{2})\.(\d{2})\.(\d{4})\s+(\d{2}):(\d{2}):(\d{2})[^\n]*?(\d{2})\.(\d{2})\.(\d{4})\s+(\d{2}):(\d{2}):(\d{2})[^%\n]*?(?<=\s)(-?\d+(?:[.,]\d+)?)\s*%/g;
+
+function parseTradeListText(text: string): ParseResult | null {
+  // Symbol and starting balance from the report header, when present.
+  const symMatch = text.match(/Symbol\s*:?\s*([A-Za-z0-9]{4,12})/i);
+  const symbol = symMatch ? cleanSymbol(symMatch[1]) : "—";
+  const depositMatch = text.match(/Initial deposit\s*:?\s*([\d\s.,]+)/i);
+  const detectedBalance = depositMatch ? parseMoney(depositMatch[1].trim()) : null;
+
+  const trades: HistTrade[] = [];
+  let id = 0;
+  for (const m of text.matchAll(TRADE_LINE_RE)) {
+    const [, side, d1, mo1, y1, h1, mi1, s1, d2, mo2, y2, h2, mi2, s2, pctRaw] = m;
+    const openT = new Date(+y1, +mo1 - 1, +d1, +h1, +mi1, +s1);
+    const close = new Date(+y2, +mo2 - 1, +d2, +h2, +mi2, +s2);
+    const pct = parseMoney(pctRaw);
+    if (pct == null || Math.abs(pct) > 100) continue;
+    if (close.getTime() < openT.getTime()) continue; // mis-glued line
+    const rounded = Math.round(pct * 100) / 100;
+    trades.push({
+      id: id++,
+      date: close,
+      pair: symbol,
+      side: side === "Buy" ? "Long" : "Short",
+      pnl: rounded,
+      pctReturn: rounded,
+      durationHours:
+        Math.round(((close.getTime() - openT.getTime()) / 3_600_000) * 10) / 10,
+      commission: 0,
+      swap: 0,
+    });
+  }
+
+  // A real report has many trades; a stray "Buy ... %" in prose does not.
+  if (trades.length < 3) return null;
+
+  trades.sort((a, b) => a.date.getTime() - b.date.getTime());
+  return {
+    ok: true,
+    trades,
+    firstDate: trades[0].date,
+    lastDate: trades[trades.length - 1].date,
+    netPnl: Math.round(trades.reduce((a, t) => a + t.pnl, 0) * 100) / 100,
+    symbols: [...new Set(trades.map((t) => t.pair))],
+    detectedBalance,
+    journal: true,
   };
 }
 

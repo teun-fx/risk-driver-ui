@@ -41,7 +41,7 @@ import {
 } from "@/lib/data";
 
 const METHODS = [
-  { id: "html", label: "Statement or journal", hint: "HTML · CSV upload", icon: FileText, ready: true },
+  { id: "html", label: "Statement or journal", hint: "HTML · CSV · PDF", icon: FileText, ready: true },
   { id: "mt5", label: "MetaTrader 5", hint: "Direct sync", icon: CandlestickChart, ready: false },
   { id: "mt4", label: "MetaTrader 4", hint: "Direct sync", icon: LineChart, ready: false },
   { id: "ctrader", label: "cTrader", hint: "Direct sync", icon: Waves, ready: false },
@@ -239,24 +239,39 @@ export function Accounts() {
   /** Shared by the file picker and drag-and-drop. */
   async function handleFile(file: File | undefined) {
     if (!file) return;
-    if (!/\.(html?|csv|tsv|txt)$/i.test(file.name)) {
-      setError("That file type isn't supported — drop an .html or .csv export.");
+    if (!/\.(html?|csv|tsv|txt|pdf)$/i.test(file.name)) {
+      setError(
+        "That file type isn't supported — drop an .html, .csv or .pdf export.",
+      );
       return;
     }
     setError("");
     setFileName(file.name);
-    // Decode by BOM — MT5 saves reports as UTF-16.
     const buf = await file.arrayBuffer();
-    const b = new Uint8Array(buf);
-    const enc =
-      b[0] === 0xff && b[1] === 0xfe
-        ? "utf-16le"
-        : b[0] === 0xfe && b[1] === 0xff
-          ? "utf-16be"
-          : "utf-8";
-    const text = new TextDecoder(enc).decode(buf);
+    let text: string;
+    if (/\.pdf$/i.test(file.name)) {
+      // PDF backtest reports: extract the text layer, then parse as usual.
+      try {
+        const { pdfToText } = await import("@/lib/pdf-text");
+        text = await pdfToText(buf);
+      } catch {
+        setPreview(null);
+        setError("This PDF could not be read — is it a text-based report?");
+        return;
+      }
+    } else {
+      // Decode by BOM — MT5 saves reports as UTF-16.
+      const b = new Uint8Array(buf);
+      const enc =
+        b[0] === 0xff && b[1] === 0xfe
+          ? "utf-16le"
+          : b[0] === 0xfe && b[1] === 0xff
+            ? "utf-16be"
+            : "utf-8";
+      text = new TextDecoder(enc).decode(buf);
+    }
     setFileText(text);
-    if (!name) setName(file.name.replace(/\.html?$/i, ""));
+    if (!name) setName(file.name.replace(/\.(html?|csv|tsv|txt|pdf)$/i, ""));
 
     // Parse immediately — the preview below the form is the check that the
     // sheet was read right, before anything is saved.
@@ -578,7 +593,7 @@ export function Accounts() {
             ? "Upload a newer export; trades and balances are re-read from it"
             : step === "methods"
               ? "Choose how to connect"
-              : "Name it, set your balance and risk, then upload an HTML or CSV export"
+              : "Name it, set your balance and risk, then upload an HTML, CSV or PDF export"
         }
         leading={
           step === "html" && !replaceTarget ? (
@@ -699,14 +714,14 @@ export function Accounts() {
                     ? "Release to load the file"
                     : fileName
                       ? "Click to replace, or drop a new file"
-                      : "MT4 / MT5 statement, or a journal export from Sheets / Excel"}
+                      : "MT4 / MT5 statement, journal export, or PDF backtest report"}
                 </span>
               </span>
             </button>
             <input
               ref={fileRef}
               type="file"
-              accept=".html,.htm,.csv,.tsv,text/html,text/csv"
+              accept=".html,.htm,.csv,.tsv,.pdf,text/html,text/csv,application/pdf"
               onChange={onFile}
               className="sr-only"
             />
