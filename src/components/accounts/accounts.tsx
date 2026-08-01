@@ -250,17 +250,26 @@ export function Accounts() {
     const buf = await file.arrayBuffer();
     let text: string;
     if (/\.pdf$/i.test(file.name)) {
-      // PDF backtest reports: extract the text layer, then parse as usual.
+      // PDF backtest reports: the text layer is extracted SERVER-side —
+      // pdf.js needs APIs Safari and older Chromiums don't ship, so running
+      // it in the browser failed for exactly the people uploading. The API
+      // returns the plain text; parsing then continues as for any file.
       try {
-        const { pdfToText } = await import("@/lib/pdf-text");
-        text = await pdfToText(buf);
-      } catch (err) {
+        const resp = await fetch("/api/pdf-text", {
+          method: "POST",
+          headers: { "content-type": "application/pdf" },
+          body: buf,
+        });
+        const data = (await resp.json()) as { text?: string; error?: string };
+        if (!resp.ok || !data.text) {
+          setPreview(null);
+          setError(data.error ?? "This PDF could not be read.");
+          return;
+        }
+        text = data.text;
+      } catch {
         setPreview(null);
-        // Surface the real reason — "could not be read" hides whether it's
-        // the file, the browser, or the PDF engine.
-        const detail =
-          err instanceof Error && err.message ? ` (${err.message})` : "";
-        setError(`This PDF could not be read${detail}.`);
+        setError("Reading the PDF failed — check your connection and try again.");
         return;
       }
     } else {
