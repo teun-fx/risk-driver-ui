@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "motion/react";
 import { useRouter } from "next/navigation";
 import {
@@ -198,6 +198,8 @@ export function Accounts() {
   const [basis, setBasis] = useState<JournalBasis>("compounded");
   /** Per flagged row: use the suggested date, keep the sheet's, or skip. */
   const [resolutions, setResolutions] = useState<Record<string, IssueResolution>>({});
+  /** True while a file is being dragged over the window (upload step open). */
+  const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   function openAdd() {
@@ -231,8 +233,16 @@ export function Accounts() {
   }
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
+    await handleFile(e.target.files?.[0]);
+  }
+
+  /** Shared by the file picker and drag-and-drop. */
+  async function handleFile(file: File | undefined) {
     if (!file) return;
+    if (!/\.(html?|csv|tsv|txt)$/i.test(file.name)) {
+      setError("That file type isn't supported — drop an .html or .csv export.");
+      return;
+    }
     setError("");
     setFileName(file.name);
     // Decode by BOM — MT5 saves reports as UTF-16.
@@ -259,6 +269,54 @@ export function Accounts() {
       setError(res.error);
     }
   }
+
+  /* Whole-window drag-and-drop while the upload step is open: dropping the
+     export anywhere on the screen files it, no aiming at the dropzone
+     required. Listeners go on window so the dialog scrim can't swallow the
+     drop, and dragover must preventDefault or the browser navigates away. */
+  const dragDepth = useRef(0);
+  // Latest handleFile — the drop listener registers once per dialog open, but
+  // must not capture a stale closure (it would clobber a typed account name).
+  const handleFileRef = useRef<(f: File | undefined) => Promise<void>>(null);
+  useEffect(() => {
+    handleFileRef.current = handleFile;
+  });
+  useEffect(() => {
+    if (!open || step !== "html") return;
+    const enter = (e: DragEvent) => {
+      if (!e.dataTransfer?.types.includes("Files")) return;
+      dragDepth.current++;
+      setDragging(true);
+    };
+    const over = (e: DragEvent) => {
+      if (e.dataTransfer?.types.includes("Files")) e.preventDefault();
+    };
+    const leave = () => {
+      if (--dragDepth.current <= 0) {
+        dragDepth.current = 0;
+        setDragging(false);
+      }
+    };
+    const drop = (e: DragEvent) => {
+      dragDepth.current = 0;
+      setDragging(false);
+      if (!e.dataTransfer?.files.length) return;
+      e.preventDefault();
+      void handleFileRef.current?.(e.dataTransfer.files[0]);
+    };
+    window.addEventListener("dragenter", enter);
+    window.addEventListener("dragover", over);
+    window.addEventListener("dragleave", leave);
+    window.addEventListener("drop", drop);
+    return () => {
+      dragDepth.current = 0;
+      setDragging(false);
+      window.removeEventListener("dragenter", enter);
+      window.removeEventListener("dragover", over);
+      window.removeEventListener("dragleave", leave);
+      window.removeEventListener("drop", drop);
+    };
+  }, [open, step]);
 
   function onConnect() {
     setError("");
@@ -616,23 +674,32 @@ export function Accounts() {
               type="button"
               onClick={() => fileRef.current?.click()}
               className={cn(
-                "flex w-full items-center gap-3 rounded-md border border-dashed border-line-strong bg-raised px-4 py-4 text-left",
-                "transition-colors duration-150 ease-out hover:border-accent",
+                "flex w-full items-center gap-3 rounded-md border border-dashed px-4 py-4 text-left",
+                "transition-colors duration-150 ease-out",
+                dragging
+                  ? "border-accent bg-accent-soft"
+                  : "border-line-strong bg-raised hover:border-accent",
               )}
             >
-              {fileName ? (
+              {dragging ? (
+                <UploadCloud className="size-5 shrink-0 animate-pulse text-accent" aria-hidden />
+              ) : fileName ? (
                 <FileText className="size-5 shrink-0 text-accent" aria-hidden />
               ) : (
                 <UploadCloud className="size-5 shrink-0 text-ink-muted" aria-hidden />
               )}
               <span className="min-w-0">
                 <span className="block truncate text-body font-medium text-ink">
-                  {fileName || "Choose an HTML statement"}
+                  {dragging
+                    ? "Drop it anywhere"
+                    : fileName || "Choose or drop a file"}
                 </span>
                 <span className="block text-label text-ink-muted">
-                  {fileName
-                    ? "Click to replace"
-                    : "MT4 / MT5 statement, or a journal export from Sheets / Excel"}
+                  {dragging
+                    ? "Release to load the file"
+                    : fileName
+                      ? "Click to replace, or drop a new file"
+                      : "MT4 / MT5 statement, or a journal export from Sheets / Excel"}
                 </span>
               </span>
             </button>
