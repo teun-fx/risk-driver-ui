@@ -26,6 +26,8 @@ import { BasisSwitch } from "@/components/ui/basis-switch";
 import {
   accountFromParse,
   parseStatement,
+  type ImportIssue,
+  type IssueResolution,
   type ParseResult,
 } from "@/lib/parse-statement";
 import { cn, money, pct } from "@/lib/utils";
@@ -39,7 +41,7 @@ import {
 } from "@/lib/data";
 
 const METHODS = [
-  { id: "html", label: "HTML statement", hint: "MT4 / MT5 export", icon: FileText, ready: true },
+  { id: "html", label: "Statement or journal", hint: "HTML · CSV upload", icon: FileText, ready: true },
   { id: "mt5", label: "MetaTrader 5", hint: "Direct sync", icon: CandlestickChart, ready: false },
   { id: "mt4", label: "MetaTrader 4", hint: "Direct sync", icon: LineChart, ready: false },
   { id: "ctrader", label: "cTrader", hint: "Direct sync", icon: Waves, ready: false },
@@ -194,6 +196,8 @@ export function Accounts() {
       BEFORE the account exists. Connect just confirms what's shown. */
   const [preview, setPreview] = useState<Extract<ParseResult, { ok: true }> | null>(null);
   const [basis, setBasis] = useState<JournalBasis>("compounded");
+  /** Per flagged row: use the suggested date, keep the sheet's, or skip. */
+  const [resolutions, setResolutions] = useState<Record<string, IssueResolution>>({});
   const fileRef = useRef<HTMLInputElement>(null);
 
   function openAdd() {
@@ -207,6 +211,7 @@ export function Accounts() {
     setError("");
     setPreview(null);
     setBasis("compounded");
+    setResolutions({});
     setOpen(true);
   }
 
@@ -221,6 +226,7 @@ export function Accounts() {
     setError("");
     setPreview(null);
     setBasis("compounded");
+    setResolutions({});
     setOpen(true);
   }
 
@@ -247,6 +253,7 @@ export function Accounts() {
     const res = parseStatement(text, file.name);
     if (res.ok) {
       setPreview(res);
+      setResolutions({});
     } else {
       setPreview(null);
       setError(res.error);
@@ -277,6 +284,7 @@ export function Accounts() {
       },
       preview,
       basis,
+      resolutions,
     );
     if (replaceTarget) {
       // Keep identity and user-set labels; refresh the data.
@@ -505,14 +513,14 @@ export function Accounts() {
             ? `Replace statement — ${replaceTarget.name}`
             : step === "methods"
               ? "Add account"
-              : "HTML statement"
+              : "Import trades"
         }
         description={
           replaceTarget
             ? "Upload a newer export; trades and balances are re-read from it"
             : step === "methods"
               ? "Choose how to connect"
-              : "Name it, set your balance and risk, then upload"
+              : "Name it, set your balance and risk, then upload an HTML or CSV export"
         }
         leading={
           step === "html" && !replaceTarget ? (
@@ -622,14 +630,16 @@ export function Accounts() {
                   {fileName || "Choose an HTML statement"}
                 </span>
                 <span className="block text-label text-ink-muted">
-                  {fileName ? "Click to replace" : ".html or .htm from MT4 / MT5"}
+                  {fileName
+                    ? "Click to replace"
+                    : "MT4 / MT5 statement, or a journal export from Sheets / Excel"}
                 </span>
               </span>
             </button>
             <input
               ref={fileRef}
               type="file"
-              accept=".html,.htm,text/html"
+              accept=".html,.htm,.csv,.tsv,text/html,text/csv"
               onChange={onFile}
               className="sr-only"
             />
@@ -647,6 +657,10 @@ export function Accounts() {
                 balance={Math.max(0, parseFloat(balance) || 0)}
                 basis={basis}
                 onBasis={setBasis}
+                resolutions={resolutions}
+                onResolve={(id, r) =>
+                  setResolutions((prev) => ({ ...prev, [id]: r }))
+                }
               />
             )}
 
@@ -735,11 +749,15 @@ function ImportPreview({
   balance,
   basis,
   onBasis,
+  resolutions,
+  onResolve,
 }: {
   res: Extract<ParseResult, { ok: true }>;
   balance: number;
   basis: JournalBasis;
   onBasis: (b: JournalBasis) => void;
+  resolutions: Record<string, IssueResolution>;
+  onResolve: (id: string, r: IssueResolution) => void;
 }) {
   // A throwaway account built the same way Connect will build it, so the
   // preview and the dashboard can never disagree.
@@ -749,19 +767,22 @@ function ImportPreview({
         { name: "preview", startingBalance: balance, riskPerTrade: 1 },
         res,
         basis,
+        resolutions,
       ),
-    [res, balance, basis],
+    [res, balance, basis, resolutions],
   );
 
   const start = temp.startingBalance ?? 0;
   const ret = start ? ((temp.equity - start) / start) * 100 : 0;
   const years = useMemo(() => monthlyReturns(temp), [temp]);
 
+  const first = temp.trades?.[0]?.date ?? res.firstDate;
+  const last = temp.trades?.[temp.trades.length - 1]?.date ?? res.lastDate;
   const stats: { label: string; value: string; tone?: "profit" | "loss" }[] = [
-    { label: "Trades", value: String(res.trades.length) },
+    { label: "Trades", value: String(temp.trades?.length ?? 0) },
     {
       label: "Period",
-      value: `${previewDate(res.firstDate)} – ${previewDate(res.lastDate)}`,
+      value: `${previewDate(first)} – ${previewDate(last)}`,
     },
     {
       label: "Net return",
@@ -788,7 +809,8 @@ function ImportPreview({
         {res.journal && <BasisSwitch value={basis} onChange={onBasis} />}
       </div>
 
-      <dl className="grid grid-cols-2 gap-x-6 gap-y-3 px-4 py-3.5 sm:grid-cols-4">
+      {/* Period is the widest stat — give it the extra track share. */}
+      <dl className="grid grid-cols-2 gap-x-6 gap-y-3 px-4 py-3.5 sm:grid-cols-[0.7fr_1.6fr_1fr_1fr]">
         {stats.map((s) => (
           <div key={s.label} className="min-w-0">
             <dt className="text-[10.5px] leading-3 text-ink-muted">{s.label}</dt>
@@ -807,6 +829,27 @@ function ImportPreview({
           </div>
         ))}
       </dl>
+
+      {res.issues && res.issues.length > 0 && (
+        <div className="border-t border-grid px-4 py-3.5">
+          <p className="flex items-center gap-2 text-body font-medium text-ink">
+            <AlertCircle className="size-4 text-warn" aria-hidden />
+            {res.issues.length === 1
+              ? "One row looks off — check it"
+              : `${res.issues.length} rows look off — check them`}
+          </p>
+          <ul className="mt-3 space-y-3">
+            {res.issues.map((iss) => (
+              <IssueRow
+                key={iss.id}
+                issue={iss}
+                value={resolutions[iss.id] ?? "fix"}
+                onChange={(r) => onResolve(iss.id, r)}
+              />
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="overflow-x-auto border-t border-grid px-1 pb-1">
         <table className="w-full border-collapse">
@@ -887,15 +930,95 @@ function ImportPreview({
         </table>
       </div>
 
-      {res.journal && (
+      {(res.journal || res.skipped) && (
         <p className="border-t border-grid px-4 py-2.5 text-[11px] leading-4 text-ink-muted">
-          {basis === "compounded"
-            ? "Compounded: each trade’s % applies to the equity at that moment, so monthly figures match your sheet exactly."
-            : "Fixed: each trade’s % is worth the same dollars throughout (percent of the starting balance)."}{" "}
-          You can switch this later from the dashboard.
+          {res.skipped && (
+            <>
+              {[
+                res.skipped.open &&
+                  `${res.skipped.open} ${res.skipped.open === 1 ? "row" : "rows"} skipped (no result yet — still open)`,
+                res.skipped.unreadable &&
+                  `${res.skipped.unreadable} ${res.skipped.unreadable === 1 ? "row" : "rows"} skipped (unreadable return)`,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+              {res.journal && " — "}
+            </>
+          )}
+          {res.journal && (
+            <>
+              {basis === "compounded"
+                ? "Compounded: each trade’s % applies to the equity at that moment, so monthly figures match your sheet exactly."
+                : "Fixed: each trade’s % is worth the same dollars throughout (percent of the starting balance)."}{" "}
+              You can switch this later from the dashboard.
+            </>
+          )}
         </p>
       )}
     </section>
+  );
+}
+
+/**
+ * One flagged row and the three ways to handle it. The suggestion is
+ * preselected — it's what the surrounding rows imply — but nothing is
+ * silently changed: the row is visible right here, before connecting.
+ */
+function IssueRow({
+  issue,
+  value,
+  onChange,
+}: {
+  issue: ImportIssue;
+  value: IssueResolution;
+  onChange: (r: IssueResolution) => void;
+}) {
+  const options: { id: IssueResolution; label: string }[] = [
+    { id: "fix", label: `Use ${issue.suggestedDate}` },
+    { id: "keep", label: `Keep ${issue.rawDate}` },
+    { id: "skip", label: "Skip trade" },
+  ];
+  return (
+    <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+      <p className="min-w-0 text-label text-ink-secondary">
+        <span className="font-medium tnum text-ink">{issue.rawDate}</span>{" "}
+        {issue.pair}{" "}
+        <span
+          className={cn(
+            "tnum font-medium",
+            issue.pct >= 0 ? "text-profit" : "text-loss",
+          )}
+        >
+          {issue.pct >= 0 ? "+" : "−"}
+          {Math.abs(issue.pct).toFixed(1)}%
+        </span>{" "}
+        sits between {issue.prevDate} and {issue.nextDate} — likely{" "}
+        {issue.suggestedDate}
+      </p>
+      <div
+        role="radiogroup"
+        aria-label={`Row dated ${issue.rawDate}`}
+        className="flex shrink-0 items-center gap-0.5 rounded-full border border-line bg-raised p-0.5"
+      >
+        {options.map((o) => (
+          <button
+            key={o.id}
+            type="button"
+            role="radio"
+            aria-checked={value === o.id}
+            onClick={() => onChange(o.id)}
+            className={cn(
+              "rounded-full px-2.5 py-1 text-[11px] font-medium whitespace-nowrap transition-colors duration-150 ease-out",
+              value === o.id
+                ? "bg-overlay text-ink"
+                : "text-ink-muted hover:text-ink",
+            )}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </li>
   );
 }
 

@@ -24,6 +24,31 @@ import type { Account, HistTrade, JournalBasis } from "@/lib/data";
  * function works on an already-decoded string.
  */
 
+/**
+ * A row the parser read successfully but doesn't trust — e.g. a date whose
+ * month disagrees with both neighbours ("25/5" sitting between April rows).
+ * Never auto-corrected: the import preview asks the user what to do, and
+ * accountFromParse applies their answer per issue.
+ */
+export type ImportIssue = {
+  id: string;
+  /** The date exactly as it appears in the sheet, e.g. "25/5". */
+  rawDate: string;
+  pair: string;
+  /** The trade's percent return (journal) — shown so the row is recognisable. */
+  pct: number;
+  /** Dates of the surrounding rows, e.g. "24/4" and "29/4". */
+  prevDate: string;
+  nextDate: string;
+  /** The correction we'd suggest, e.g. "25/4". */
+  suggestedDate: string;
+  /** 1-based month of the suggestion. */
+  suggestedMonth: number;
+};
+
+/** What the user chose for one flagged row. */
+export type IssueResolution = "fix" | "keep" | "skip";
+
 export type ParseResult =
   | {
       ok: true;
@@ -37,6 +62,11 @@ export type ParseResult =
       /** Journal sheets store each trade's pnl as a PERCENT return, converted
           to money only in accountFromParse (fixed % of starting balance). */
       journal?: boolean;
+      /** Suspicious rows for the user to confirm in the import preview. */
+      issues?: ImportIssue[];
+      /** Rows that were skipped, with the reason — shown in the preview so
+          "56 trades" never silently means "56 of 61". */
+      skipped?: { open: number; unreadable: number };
     }
   | { ok: false; error: string };
 
@@ -102,19 +132,72 @@ function findHeader(rows: Row[], from: number) {
   return null;
 }
 
-export function parseStatement(html: string, fileName?: string): ParseResult {
-  let doc: Document;
-  try {
-    doc = new DOMParser().parseFromString(html, "text/html");
-  } catch {
-    return { ok: false, error: "This file could not be read as HTML." };
-  }
+/**
+ * CSV / TSV / semicolon-separated text into rows. Handles quoted fields
+ * (Google Sheets wraps Dutch decimals: "1,20") including escaped quotes.
+ * The delimiter is whichever of , ; \t splits the header into the most
+ * columns — Dutch Excel exports use semicolons, Sheets uses commas.
+ */
+function parseDelimited(text: string): Row[] {
+  const firstLine = text.slice(0, text.indexOf("\n") + 1 || text.length);
+  const delim = [",", ";", "\t"]
+    .map((d) => ({ d, n: firstLine.split(d).length }))
+    .sort((a, b) => b.n - a.n)[0].d;
 
-  const rows: Row[] = Array.from(doc.querySelectorAll("tr")).map((r) =>
-    Array.from(r.querySelectorAll("td, th")).map((c) =>
-      (c.textContent ?? "").replace(/\s+/g, " ").trim(),
-    ),
-  );
+  const rows: Row[] = [];
+  let cell = "";
+  let row: string[] = [];
+  let quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (quoted) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') {
+          cell += '"';
+          i++;
+        } else quoted = false;
+      } else cell += ch;
+    } else if (ch === '"') {
+      quoted = true;
+    } else if (ch === delim) {
+      row.push(cell.trim());
+      cell = "";
+    } else if (ch === "\n" || ch === "\r") {
+      if (ch === "\r" && text[i + 1] === "\n") i++;
+      row.push(cell.trim());
+      rows.push(row);
+      row = [];
+      cell = "";
+    } else cell += ch;
+  }
+  if (cell || row.length) {
+    row.push(cell.trim());
+    rows.push(row);
+  }
+  return rows;
+}
+
+export function parseStatement(text: string, fileName?: string): ParseResult {
+  // CSV route: by extension, or when the content plainly isn't an HTML table.
+  const isCsv =
+    /\.(csv|tsv|txt)$/i.test(fileName ?? "") || !/<\s*(table|tr)[\s>]/i.test(text);
+
+  let rows: Row[];
+  if (isCsv) {
+    rows = parseDelimited(text);
+  } else {
+    let doc: Document;
+    try {
+      doc = new DOMParser().parseFromString(text, "text/html");
+    } catch {
+      return { ok: false, error: "This file could not be read as HTML." };
+    }
+    rows = Array.from(doc.querySelectorAll("tr")).map((r) =>
+      Array.from(r.querySelectorAll("td, th")).map((c) =>
+        (c.textContent ?? "").replace(/\s+/g, " ").trim(),
+      ),
+    );
+  }
 
   // A report can contain several tables (Orders, Deals). Parse every header
   // that has a Profit column and keep whichever yields the most trades.
@@ -240,7 +323,7 @@ export function parseStatement(html: string, fileName?: string): ParseResult {
     return {
       ok: false,
       error:
-        "No trades found. Upload a MetaTrader 4/5 statement, a Strategy Tester report, or a journal sheet with Asset / Order / Result / Return columns.",
+        "No trades found. Upload a MetaTrader 4/5 statement, a Strategy Tester report, or a journal export (HTML or CSV) with Asset / Order / Result / Return columns.",
     };
   }
 
@@ -293,20 +376,29 @@ function parseJournalRows(rows: Row[], fileName?: string): ParseResult | null {
   };
   if (col.date < 0) return null;
 
-  const trades: HistTrade[] = [];
-  let id = 0;
-  // A year in the file name ("2024.html") seeds the anchor for sheets whose
-  // Code column is empty; an in-row code still overrides it.
-  const nameYear = fileName?.match(/\b(20\d{2})\b/);
-  let year: number | null = nameYear ? +nameYear[1] : null;
-  let prevMonth = 0;
-  let skippedForYear = 0;
+  /* Pass 1 — collect candidate rows without dating them yet. Detecting typos
+     needs the row's neighbours, so dating happens after the full scan. */
+  type Candidate = {
+    raw: string;
+    day: number;
+    month: number;
+    codeYear: number | null;
+    asset: string;
+    order: string;
+    pct: number;
+    hh: number;
+    mm: number;
+  };
+  const cands: Candidate[] = [];
+  let open = 0;
+  let unreadable = 0;
 
   for (let i = headerIdx + 1; i < rows.length; i++) {
     const row = rows[i];
     if (row.length <= col.ret) continue;
 
-    const dm = (row[col.date] ?? "").match(JOURNAL_DATE_RE);
+    const raw = (row[col.date] ?? "").trim();
+    const dm = raw.match(JOURNAL_DATE_RE);
     if (!dm) continue;
     const day = +dm[1];
     const month = +dm[2];
@@ -319,27 +411,23 @@ function parseJournalRows(rows: Row[], fileName?: string): ParseResult | null {
     const order = (row[col.order] ?? "").toLowerCase().trim();
     if (order !== "buy" && order !== "sell") continue;
 
-    if (!(row[col.result] ?? "").trim()) continue; // still open / unfinished
-
-    const pct = parseMoney(row[col.ret] ?? "");
-    if (pct == null || Math.abs(pct) > 100) continue;
-
-    // Year from the M(M)YY code when present and sane.
-    const codeMatch =
-      col.code >= 0 ? (row[col.code] ?? "").match(/^(\d{1,2})(\d{2})$/) : null;
-    if (codeMatch && +codeMatch[1] >= 1 && +codeMatch[1] <= 12) {
-      year = 2000 + +codeMatch[2];
-    } else if (year != null && prevMonth - month >= 6) {
-      // Rows are chronological, so a big backwards jump (Dec -> Jan) is a new
-      // year. Small dips are data-entry typos ("25/5" between April rows) and
-      // must NOT roll the year, or one typo shifts the rest of the sheet.
-      year += 1;
-    }
-    if (year == null) {
-      skippedForYear++; // no anchor yet — can't date this row
+    if (!(row[col.result] ?? "").trim()) {
+      open++; // still open / unfinished — a dated row without an outcome
       continue;
     }
-    prevMonth = month;
+
+    const pct = parseMoney(row[col.ret] ?? "");
+    if (pct == null || Math.abs(pct) > 100) {
+      unreadable++;
+      continue;
+    }
+
+    const codeMatch =
+      col.code >= 0 ? (row[col.code] ?? "").match(/^(\d{1,2})(\d{2})$/) : null;
+    const codeYear =
+      codeMatch && +codeMatch[1] >= 1 && +codeMatch[1] <= 12
+        ? 2000 + +codeMatch[2]
+        : null;
 
     let hh = 0;
     let mm = 0;
@@ -350,12 +438,67 @@ function parseJournalRows(rows: Row[], fileName?: string): ParseResult | null {
       mm = +tm[2];
     }
 
-    const rounded = Math.round(pct * 100) / 100;
+    cands.push({ raw, day, month, codeYear, asset, order, pct, hh, mm });
+  }
+
+  /* Pass 2 — flag rows whose month disagrees with BOTH neighbours while the
+     neighbours agree with each other ("25/5" between "24/4" and "29/4" is a
+     typo for "25/4"; a real single-trade month has differing neighbours and
+     is left alone). Flagged rows keep their literal date — the import
+     preview asks the user, and accountFromParse applies the answer. */
+  const flagged = new Map<number, string>(); // candidate index -> issue id
+  const issues: ImportIssue[] = [];
+  for (let i = 1; i < cands.length - 1; i++) {
+    const prev = cands[i - 1];
+    const cur = cands[i];
+    const next = cands[i + 1];
+    if (cur.month !== prev.month && prev.month === next.month) {
+      const iid = `row-${i}`;
+      flagged.set(i, iid);
+      issues.push({
+        id: iid,
+        rawDate: cur.raw,
+        pair: cur.asset.toUpperCase(),
+        pct: Math.round(cur.pct * 100) / 100,
+        prevDate: prev.raw,
+        nextDate: next.raw,
+        suggestedDate: `${cur.day}/${prev.month}`,
+        suggestedMonth: prev.month,
+      });
+    }
+  }
+
+  /* Pass 3 — anchor years and build trades. Flagged rows are excluded from
+     the rollover bookkeeping so one typo can't shift the rest of the sheet. */
+  const trades: HistTrade[] = [];
+  let id = 0;
+  // A year in the file name ("2024.html") seeds the anchor for sheets whose
+  // Code column is empty; an in-row code still overrides it.
+  const nameYear = fileName?.match(/\b(20\d{2})\b/);
+  let year: number | null = nameYear ? +nameYear[1] : null;
+  let prevMonth = 0;
+  let skippedForYear = 0;
+
+  cands.forEach((c, i) => {
+    if (c.codeYear != null) {
+      year = c.codeYear;
+    } else if (year != null && !flagged.has(i) && prevMonth - c.month >= 6) {
+      // Rows are chronological, so a big backwards jump (Dec -> Jan) is a
+      // new year. Small dips are data-entry typos and never roll the year.
+      year += 1;
+    }
+    if (year == null) {
+      skippedForYear++; // no anchor yet — can't date this row
+      return;
+    }
+    if (!flagged.has(i)) prevMonth = c.month;
+
+    const rounded = Math.round(c.pct * 100) / 100;
     trades.push({
       id: id++,
-      date: new Date(year, month - 1, day, hh, mm),
-      pair: asset.toUpperCase(),
-      side: order === "buy" ? "Long" : "Short",
+      date: new Date(year, c.month - 1, c.day, c.hh, c.mm),
+      pair: c.asset.toUpperCase(),
+      side: c.order === "buy" ? "Long" : "Short",
       // PERCENT, not money — converted per basis in accountFromParse. The raw
       // percent also rides along in pctReturn so the basis can be switched
       // later without re-uploading the file.
@@ -364,8 +507,9 @@ function parseJournalRows(rows: Row[], fileName?: string): ParseResult | null {
       durationHours: 0,
       commission: 0,
       swap: 0,
+      issueId: flagged.get(i),
     });
-  }
+  });
 
   if (!trades.length) {
     // The journal table was there, the trades were there — only the year was
@@ -391,6 +535,8 @@ function parseJournalRows(rows: Row[], fileName?: string): ParseResult | null {
     symbols: [...new Set(trades.map((t) => t.pair))],
     detectedBalance: null,
     journal: true,
+    issues: issues.length ? issues : undefined,
+    skipped: open || unreadable ? { open, unreadable } : undefined,
   };
 }
 
@@ -439,18 +585,50 @@ export function accountFromParse(
   res: Extract<ParseResult, { ok: true }>,
   /** Journal sheets only: how percents become money. */
   basis: JournalBasis = "compounded",
+  /** The user's answer per flagged row ("fix" = use the suggested date).
+      Unanswered issues default to "fix" — the suggestion is what the sheet's
+      own monthly totals imply, and the preview shows it before connecting. */
+  resolutions?: Record<string, IssueResolution>,
 ): Account {
   // The report's own starting balance wins when present — it's exact.
   const startingBalance = res.detectedBalance ?? opts.startingBalance;
+
+  // Apply the per-issue choices, then drop the issue tags — they're an
+  // import-time concept and must not be stored on the account.
+  const byId = new Map((res.issues ?? []).map((iss) => [iss.id, iss]));
+  const trades: HistTrade[] = [];
+  for (const t of res.trades) {
+    if (!t.issueId) {
+      trades.push(t);
+      continue;
+    }
+    const issue = byId.get(t.issueId);
+    const choice = resolutions?.[t.issueId] ?? "fix";
+    if (choice === "skip") continue;
+    const date =
+      choice === "fix" && issue
+        ? new Date(
+            t.date.getFullYear(),
+            issue.suggestedMonth - 1,
+            t.date.getDate(),
+            t.date.getHours(),
+            t.date.getMinutes(),
+          )
+        : t.date;
+    trades.push({ ...t, date, issueId: undefined });
+  }
+  trades.sort((a, b) => a.date.getTime() - b.date.getTime());
+  const netPnl =
+    Math.round(trades.reduce((a, t) => a + t.pnl, 0) * 100) / 100;
 
   const account: Account = {
     id: `html-${Date.now().toString(36)}`,
     name: opts.name.trim() || "Imported account",
     broker: "HTML statement",
-    since: res.firstDate.getFullYear(),
-    equity: Math.round(startingBalance + res.netPnl),
+    since: (trades[0]?.date ?? res.firstDate).getFullYear(),
+    equity: Math.round(startingBalance + netPnl),
     source: "html",
-    trades: res.trades,
+    trades,
     startingBalance,
     riskPerTrade: opts.riskPerTrade,
     hasBenchmark: false,

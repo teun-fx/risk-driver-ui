@@ -547,6 +547,9 @@ export type HistTrade = {
       `pnl` is derived from it per the account's P&L basis and can be
       recomputed at any time (see withJournalBasis). */
   pctReturn?: number;
+  /** Links the trade to an ImportIssue during the import preview. Stripped
+      once the user's resolution is applied — never stored. */
+  issueId?: string;
 };
 
 /**
