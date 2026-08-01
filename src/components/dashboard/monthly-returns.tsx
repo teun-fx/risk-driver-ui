@@ -1,4 +1,9 @@
+"use client";
+
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { Toggle } from "@/components/ui/toggle";
+import { useAccount } from "@/components/account-context";
+import { withJournalBasis } from "@/lib/parse-statement";
 import {
   MONTHS,
   monthlyReturns,
@@ -105,6 +110,7 @@ function Cell({
 }
 
 export function MonthlyReturns({ account }: { account: Account }) {
+  const { updateAccount } = useAccount();
   const rows = monthlyReturns(account);
 
   const stats = monthlyStats(account);
@@ -132,6 +138,24 @@ export function MonthlyReturns({ account }: { account: Account }) {
             </span>
           </div>
         </div>
+
+        {/* Journal accounts: the same layer switch as the equity curve.
+            Off = fixed % of the starting balance, on = compounded. It flips
+            the account's basis, so every other view follows too. */}
+        {account.journal && (
+          <div className="shrink-0">
+            <Toggle
+              label="Compounding"
+              checked={(account.basis ?? "compounded") === "compounded"}
+              onChange={(v) =>
+                updateAccount({
+                  ...withJournalBasis(account, v ? "compounded" : "fixed"),
+                  updatedAt: new Date().toISOString(),
+                })
+              }
+            />
+          </div>
+        )}
       </CardHeader>
 
       {/* Grid and derived stats sit side by side inside the one card, so the
